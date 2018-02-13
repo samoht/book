@@ -52,150 +52,219 @@
 	<h1>Maps</h1>
 
 	<p>
-	  Let's consider an example of how one might use a map in
-	  practice. In <a href="04-files-modules-and-programs.html#files-modules-and-programs" data-type="xref">Files Modules And Programs</a>, we showed a
-	  module <code>Counter</code> for keeping frequency counts on a
-	  set of strings. Here's the interface:</p>
+	  Let's see what the above association list example looks like
+	  using maps.</p>
 
-	<link rel="import" href="code/files-modules-and-programs/freq-fast/counter.mli"/>
-
-	<p>
-	  The intended behavior here is straightforward.
-	  <code>Counter.empty</code> represents an empty collection of
-	  frequency counts; <code>touch</code> increments the frequency
-	  count of the specified string by 1; and <code>to_list</code>
-	  returns the list of nonzero frequencies.</p>
-
-	<p>Here's the implementation:</p>
-
-	<link rel="import" href="code/files-modules-and-programs/freq-fast/counter.ml"/>
+	<link rel="import" part="3" 
+	      href="code/maps-and-hash-tables/main.topscript" />
 
 	<p>
-	  Note that in some places the preceding code refers to
-	  <code>String.Map.t</code>, and in others <code>Map.t</code>.
-	  This has to do with the fact that maps are implemented as
-	  ordered binary trees, and as such, need a way of comparing
-	  keys.</p>
+	  The most important difference between maps and association
+	  lists is performance. Most operations on maps,
+	  including <code>Map.find</code> and <code>Map.set</code>,
+	  take time logarithmic, rather than linear, in the number of
+	  entries. That's possible because maps are structured as
+	  ordered, balanced binary trees, where the cost of most
+	  operations is proportional to the depth of the tree.
+	</p>
 
 	<p>
-	  To deal with this, a map, once created, stores the
-	  necessary comparison function within the data structure.
-	  Thus, operations like <code>Map.find</code> or
-	  <code>Map.add</code> that access the contents of a map or
-	  create a new map from an existing one, do so by using the
-	  comparison function embedded within the map.</p>
+	  The map code is also more concise than the association list
+	  version. That's because the association list operators need
+	  to be told how to check elements for equality on each
+	  invocation, but the map operations don't.  Instead, only
+	  operations that need to create a map from scratch,
+	  like <code>Map.of_alist_exn</code>, need such help. Note,
+	  however, that because the binary trees backing a map are
+	  ordered, you need to know how to compare keys in order to
+	  create a map, not just check them for equality.
+	</p>
 
 	<p>
-	  But in order to get a map in the first place, you need to
-	  get your hands on the comparison function somehow. For this
-	  reason, modules like <code>String</code> contain a
-	  <code>Map</code> submodule that has values like
-	  <code>String.Map.empty</code> and
-	  <code>String.Map.of_alist</code> that are specialized to
-	  strings, and thus have access to a string comparison
-	  function. Such a <code>Map</code> submodule is included in
-	  every module that satisfies the <code>Comparable.S</code>
-	  interface from Core.</p>
+	  When building maps, the knowledge of how to compare keys is
+	  provided in the form of a first-class module. So, to create
+	  an empty map indexed by integers, we'd write <code>Map.empty
+	  (module Int)</code>. The comparison function embedded in
+	  that module is stored in the constructed map, so you don't
+	  need to provide it again when using a function
+	  like <code>Map.find</code>.
+	</p>
 
-	<section id="creating-maps-with-comparators" data-type="sect2">
-          <h2>Creating Maps with Comparators</h2>
+	<p>
+	  It's worth taking a moment to look at the type signature of
+	  a map, and compare it to that of a corresponding association
+	  list.
+	</p>
 
-          <p>
-	    The specialized <code>Map</code> submodule is
-            convenient, but it's not the only way of creating a
-            <code>Map.t</code>. The information required to compare
-            values of a given type is wrapped up in a value called a
-            <em>comparator</em> that can be used to create maps using
-            the <code>Map</code> module directly:
+	<link rel="import" part="4" 
+	      href="code/maps-and-hash-tables/main.topscript" />
 
-	    <idx>comparators, creating maps with</idx>
-	    <idx>Map module/Map.of_alist_exn</idx>
-	    <idx>maps/creating with comparators</idx></p>
+	<p>
+	  You can see that an association list has two type
+	  parameters, one for the type of the key, which
+	  is <code>int</code> in this case, and the other with the
+	  type of the data, <code>string</code>.
+	</p>
 
-          <link rel="import" href="code/maps-and-hash-tables/main.topscript" part="3"/>
+	<p>
+	  The map, on the other hand, has <em>three</em> type
+	  parameters: one for the key, one for the data, and one,
+	  called the <em>comparator witness</em>, to indicate the
+	  comparison function in use.  It's not obvious why you need
+	  that last one; after all, how many ways are there of
+	  comparing a given type? Doesn't the type of the key already
+	  imply the comparison function?
+	</p>
 
-          <p>
-	    The preceding code uses <code>Map.of_alist_exn</code>,
-            which creates a map from an association list, throwing an
-            exception if there are duplicate keys in the list.</p>
+	<p>
+	  Most of the time, it does, and
+	  indeed, <code>Int.comparator_witness</code> represents the
+	  default comparison function provided by the <code>Int</code>
+	  module. But as we'll see later, it can be useful to have
+	  different comparison functions, and therefore different
+	  comparator witnesses, for the same type.
+	</p>
 
-          <p>
-	    The comparator is only required for operations that
-            create maps from scratch. Operations that update an
-            existing map simply inherit the comparator of the map they
-            start with:</p>
+	<p>
+	  But before we get to that, we have a more basic question to
+	  address. The examples thus far have all used standard built
+	  in types; but what if you have your own type that you want
+	  to use as a map key? We'll cover that next.
+	</p>
 
-          <link rel="import" href="code/maps-and-hash-tables/main.topscript" part="4"/>
+	<section id="Maps with custom keys" data-type="sect2">
+	  <h2> Maps with custom keys </h2>
 
-          <p>
-	    The type <code>Map.t</code> has three type parameters: one
-            for the key, one for the value, and one to identify the
-            comparator. Indeed, the type <code>'a Int.Map.t</code> is
-            just a type alias
-            for <code>(int,'a,Int.comparator_witness)
-            Map.t</code>.</p>
+	  <p>
+	    Imagine you want to create a map indexed by some kind of
+	    identifier for services running on your network. Such an
+	    identifier might be specified as follows.
+	  </p>
 
-          <p>
-	    Including the comparator in the type is important because
-            operations that work on multiple maps at the same time often
-            require that the maps share their comparison function.
-            Consider, for example, <code>Map.symmetric_diff</code>,
-            which computes the difference between two maps.</p>
+          <link rel="import" part="ck.1"
+		href="code/maps-and-hash-tables/main.topscript" />
 
-          <link rel="import" href="code/maps-and-hash-tables/main.topscript" part="5"/>
+	  <p>
+	    Note that we used a <code>deriving</code> annotation to
+	    request the construction of a comparison function and of
+	    an s-expression converter for this type. We could have
+	    written these by hand, but in this case,
+	    the <code>deriving</code>-based ones will work fine.
+	  </p>    
 
-          <p>
-	    The type of <code>Map.symmetric_diff</code>, which
-            follows, requires that the two maps it compares have the
-            same comparator type. Each comparator has a distinct
-            abstract type, so the type of a comparator identifies the
-            comparator uniquely.</p>
+	  <p>
+	    This isn't quite enough to generate a map. Indeed, if you
+	    try to use the module <code>Service_id</code> we created
+	    above to construct a map, you'll get an error.
+	  </p>
+	  
+          <link rel="import" part="ck.2"
+		href="code/maps-and-hash-tables/main.topscript" />
 
-          <link rel="import" href="code/maps-and-hash-tables/main.topscript" part="6"/>
+	  <p>
+	    The module we created has a comparison function, but
+	    that's not enough.  It also needs a <em>comparator</em>,
+	    which is a special value that has a distinguished type
+	    (the <code>comparator_witness</code> that showed up
+	    earlier) to uniquely identify the comparison function in
+	    question. We can build the comparator using a functor that
+	    has been designed for that purpose.
+	  </p>
 
-          <p>
-	    This constraint is important because the algorithm
-            that <code>Map.symmetric_diff</code> uses depends for its
-            correctness on the fact that both maps have the same
-            comparator.</p>
+          <link rel="import" part="ck.3"
+		href="code/maps-and-hash-tables/main.topscript" />
 
-          <p>
-	    We can create a new comparator using the
-            <code>Comparator.Make</code> functor, which takes as its
-            input a module containing the type of the object to be
-            compared, sexp converter functions, and a comparison
-            function. The sexp converters are included in the
-            comparator to make it possible for users of the comparator
-            to generate better error messages. Here's an
-            example:
+	  <p>
+	    We can now construct a map using this module, as we did
+	    above with the <code>Int</code> module.
+	  </p>
 
-	    <idx>Sexplib package/sexp converter</idx></p>
+          <link rel="import" part="ck.4"
+		href="code/maps-and-hash-tables/main.topscript" />
 
-          <link rel="import" href="code/maps-and-hash-tables/main.topscript" part="7"/>
+	  <p>
+	    Now we have two modules, <code>Service_id</code>, which
+	    has the definition of a service ID ,
+	    and <code>Service_id_comparator</code>, which gives you
+	    what you need to construct a map. The following example
+	    shows you an idiom that lets you construct a single module
+	    that is suitable for both purposes.
+	  </p>
 
-          <p>
-	    As you can see in the following code,
-            both <code>Reverse.comparator_witness</code>
-            and <code>String.comparator_witness</code> can be used to
-            create maps with a key type of <code>string</code>:</p>
+          <link rel="import" part="ck.5"
+		href="code/maps-and-hash-tables/main.topscript" />
 
-          <link rel="import" href="code/maps-and-hash-tables/main.topscript" part="8"/>
+	  <p>
+	    The functor <code>Comparator.Make</code> gives you just
+	    what you need to create a map. Often, what you really want
+	    is the more full-featured <code>Comparable.Make</code>,
+	    which additionally creates a bunch of useful utilities for
+	    working with values that support comparison.
+	  </p>
 
-          <p>
-	    <code>Map.min_elt</code> returns the key and value for
-            the smallest key in the map, which lets us see that these
-            two maps do indeed use different comparison functions:</p>
+          <link rel="import" part="ck.6"
+		href="code/maps-and-hash-tables/main.topscript" />
 
-          <link rel="import" href="code/maps-and-hash-tables/main.topscript" part="9"/>
-
-          <p>
-	    Accordingly, if we try to use
-            <code>Map.symmetric_diff</code> on these two maps, we'll
-            get a compile-time error:</p>
-
-          <link rel="import" href="code/maps-and-hash-tables/main.topscript" part="10"/>
 	</section>
 
+
+	<section id="Different comparators for the same type" data-type="sect2">
+	  <h2> Different comparators for the same type </h2>
+
+        <p>
+	  The type of <code>Map.symmetric_diff</code>, which
+          follows, requires that the two maps it compares have the
+          same comparator type. Each comparator has a distinct
+          abstract type, so the type of a comparator identifies the
+          comparator uniquely.</p>
+
+
+        <p>
+	  This constraint is important because the algorithm
+          that <code>Map.symmetric_diff</code> uses depends for its
+          correctness on the fact that both maps have the same
+          comparator.</p>
+
+        <p>
+	  We can create a new comparator using
+          the <code>Comparator.Make</code> functor, which takes as its
+          input a module containing the type of the object to be
+          compared, sexp converter functions, and a comparison
+          function. The sexp converters are included in the comparator
+          to make it possible for users of the comparator to generate
+          better error messages. Here's an example:
+
+	  <idx>Sexplib package/sexp converter</idx></p>
+
+        <link rel="import" part="7.old"
+	      href="code/maps-and-hash-tables/main.topscript" />
+
+        <p>
+	  As you can see in the following code,
+          both <code>Reverse.comparator_witness</code>
+          and <code>String.comparator_witness</code> can be used to
+          create maps with a key type of <code>string</code>:</p>
+
+        <link rel="import" part="8.old"
+	      href="code/maps-and-hash-tables/main.topscript" />
+
+        <p>
+	  <code>Map.min_elt</code> returns the key and value for
+          the smallest key in the map, which lets us see that these
+          two maps do indeed use different comparison functions:</p>
+
+        <link rel="import" part="9.old"
+	      href="code/maps-and-hash-tables/main.topscript" />
+
+        <p>
+	  Accordingly, if we try to use
+          <code>Map.symmetric_diff</code> on these two maps, we'll
+          get a compile-time error:</p>
+
+        <link rel="import" part="10.old"
+	      href="code/maps-and-hash-tables/main.topscript" />
+
+	</section>
 	<section id="trees" data-type="sect2">
           <h2>Trees</h2>
 
@@ -211,7 +280,8 @@
 	    <idx>Map module/Map.to_tree</idx>
 	    <idx>maps/tree structure</idx></p>
 
-          <link rel="import" href="code/maps-and-hash-tables/main.topscript" part="11"/>
+          <link rel="import" part="11.old"
+		href="code/maps-and-hash-tables/main.topscript" />
 
           <p>
 	    Even though a <code>Map.Tree.t</code> doesn't physically
@@ -227,7 +297,8 @@
             to provide the comparator explicitly when we, say, search
             for a key, as shown below:</p>
 
-          <link rel="import" href="code/maps-and-hash-tables/main.topscript" part="12"/>
+          <link rel="import" part="12.old"
+		href="code/maps-and-hash-tables/main.topscript" />
 
           <p>
 	    The algorithm of <code>Map.Tree.find</code> depends on
@@ -793,6 +864,32 @@
 	  <idx>physical equality</idx>
 	  <idx>equality, tests of</idx></p>
       </section>
+
+
+	<p>In
+	<a href="04-files-modules-and-programs.html#files-modules-and-programs"
+	      data-type="xref">Files Modules And Programs</a>, we
+	showed a module <code>Counter</code> for keeping frequency
+	counts on a set of strings. Here's the interface.</p>
+
+	<link rel="import" 
+	      href="code/files-modules-and-programs/freq-fast/counter.mli"/>
+
+	<p>
+	  The intended behavior here is straightforward.
+	  <code>Counter.empty</code> represents an empty collection of
+	  frequency counts; <code>touch</code> increments the frequency
+	  count of the specified string by 1; and <code>to_list</code>
+	  returns the list of nonzero frequencies.</p>
+
+	<p>Here's the implementation.</p>
+
+	<link rel="import" 
+	      href="code/files-modules-and-programs/freq-fast/counter.ml"/>
+
+      
     </section>
   </body>
 </html>
+
+
