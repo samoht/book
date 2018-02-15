@@ -1,12 +1,14 @@
 <html xmlns="http://www.w3.org/1999/xhtml">
   <head>
     <meta name="generator" content="HTML Tidy for HTML5 for Mac OS X version 4.9.20"/>
-
+ 
     <title></title>
   </head>
 
   <body>
-    <section xmlns="http://www.w3.org/1999/xhtml" id="maps-and-hash-tables" data-type="chapter">
+    <section xmlns="http://www.w3.org/1999/xhtml"
+	     id="maps-and-hash-tables"
+	     data-type="chapter">
       <h1>Maps and Hash Tables</h1>
 
       <p>
@@ -22,13 +24,15 @@
 	<idx>lists/association lists</idx>
 	<idx>association lists</idx></p>
 
-      <link rel="import" href="code/maps-and-hash-tables/main.topscript" part="1"/>
+      <link rel="import" part="1"
+	    href="code/maps-and-hash-tables/main.topscript" />
 
       <p>
 	We can use functions from the <code>List.Assoc</code> module
 	to manipulate this data:</p>
 
-      <link rel="import" href="code/maps-and-hash-tables/main.topscript" part="2"/>
+      <link rel="import" part="2"
+	    href="code/maps-and-hash-tables/main.topscript" />
 
       <p>
 	Association lists are simple and easy to use, but their
@@ -70,7 +74,7 @@
 
 	<p>
 	  The map code is also more concise than the association list
-	  version. That's because the association list operators need
+	  version. That's because the association list operations need
 	  to be told how to check elements for equality on each
 	  invocation, but the map operations don't.  Instead, only
 	  operations that need to create a map from scratch,
@@ -85,8 +89,8 @@
 	  provided in the form of a first-class module. So, to create
 	  an empty map indexed by integers, we'd write <code>Map.empty
 	  (module Int)</code>. The comparison function embedded in
-	  that module is stored in the constructed map, so you don't
-	  need to provide it again when using a function
+	  that module is stored in the constructed map, which is why
+	  you don't need to provide it again when using a function
 	  like <code>Map.find</code>.
 	</p>
 
@@ -100,10 +104,9 @@
 	      href="code/maps-and-hash-tables/main.topscript" />
 
 	<p>
-	  You can see that an association list has two type
-	  parameters, one for the type of the key, which
-	  is <code>int</code> in this case, and the other with the
-	  type of the data, <code>string</code>.
+	  The association list effectively has two type parameters,
+	  one for the type of the key (<code>int</code>) and one for
+	  the type of the data (<code>string</code>).
 	</p>
 
 	<p>
@@ -127,18 +130,20 @@
 
 	<p>
 	  But before we get to that, we have a more basic question to
-	  address. The examples thus far have all used standard built
-	  in types; but what if you have your own type that you want
-	  to use as a map key? We'll cover that next.
+	  address. The examples thus far have all used standard types
+	  with their own dedicated module in <code>Base</code>; but
+	  what if you have your own type that you want to use as a map
+	  key? We'll cover that next.
 	</p>
 
 	<section id="Maps with custom keys" data-type="sect2">
 	  <h2> Maps with custom keys </h2>
 
 	  <p>
-	    Imagine you want to create a map indexed by some kind of
-	    identifier for services running on your network. Such an
-	    identifier might be specified as follows.
+	    Imagine you want to create a map indexed by a <em>service
+	    identifier</em>, a structured type that identifies
+	    instances of services running on your network. Such an
+	    identifier might look like this.
 	  </p>
 
           <link rel="import" part="ck.1"
@@ -193,6 +198,14 @@
 
           <link rel="import" part="ck.5"
 		href="code/maps-and-hash-tables/main.topscript" />
+
+	  <p>
+	    Here, we created a sub-module <code>T</code> that had the
+	    type definition and the sexp converter and comparison
+	    function, and then included both <code>T</code>, and the
+	    result of applying <code>Comparator.Make</code>
+	    to <code>T</code>, in the same module.
+	  </p>
 
 	  <p>
 	    The functor <code>Comparator.Make</code> gives you just

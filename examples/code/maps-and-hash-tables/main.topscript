@@ -49,10 +49,10 @@ Map.find digit_map 0;;
 [%%expect ocaml {|- : string option = Some "zero"|}];;
 
 [@@@part "4"];;
-Map.singleton (module Int) 3 "three";;
-[%%expect ocaml {|- : (int, string, Int.comparator_witness) Map.t = <abstr>|}];;
 [(3, "three")];;
 [%%expect ocaml {|- : (int * string) list = [(3, "three")]|}];;
+Map.singleton (module Int) 3 "three";;
+[%%expect ocaml {|- : (int, string, Int.comparator_witness) Map.t = <abstr>|}];;
 
 [@@@part "ck.1"];;
 module Service_id = struct
