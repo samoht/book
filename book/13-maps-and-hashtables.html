@@ -56,32 +56,22 @@
 	<h1>Maps</h1>
 
 	<p>
-	  Let's see what the above association list example looks like
-	  using maps.</p>
+	  We can redo the example we did above using maps instead of
+	  association lists.</p>
 
 	<link rel="import" part="3" 
 	      href="code/maps-and-hash-tables/main.topscript" />
 
 	<p>
-	  The most important difference between maps and association
-	  lists is performance. Most operations on maps,
-	  including <code>Map.find</code> and <code>Map.set</code>,
-	  take time logarithmic, rather than linear, in the number of
-	  entries. That's possible because maps are structured as
-	  ordered, balanced binary trees, where the cost of most
-	  operations is proportional to the depth of the tree.
-	</p>
-
-	<p>
-	  The map code is also more concise than the association list
-	  version. That's because the association list operations need
-	  to be told how to check elements for equality on each
-	  invocation, but the map operations don't.  Instead, only
-	  operations that need to create a map from scratch,
-	  like <code>Map.of_alist_exn</code>, need such help. Note,
-	  however, that because the binary trees backing a map are
-	  ordered, you need to know how to compare keys in order to
-	  create a map, not just check them for equality.
+	  You can observe that this was a little more concise with
+	  maps than with association lists. That's because the
+	  association list operations need to be told how to check
+	  keys for equality on each invocation. Building a map
+	  requires not just equality on keys but also the ability to
+	  compare keys, since maps are implemented as sorted binary
+	  trees.  But these comparison functions only needed for
+	  functions like <code>Map.of_alist_exn</code> that construct
+	  a map from scratch.
 	</p>
 
 	<p>
@@ -94,6 +84,15 @@
 	  like <code>Map.find</code>.
 	</p>
 
+	<p>
+	  Maps actually need more than just the ability to compare
+	  keys; they also need to be able to serialize keys for the
+	  purpose of generating error messages.
+	</p>
+
+	<link rel="import" part="3.1" 
+	      href="code/maps-and-hash-tables/main.topscript" />
+	
 	<p>
 	  It's worth taking a moment to look at the type signature of
 	  a map, and compare it to that of a corresponding association
@@ -224,104 +223,100 @@
 	<section id="Different comparators for the same type" data-type="sect2">
 	  <h2> Different comparators for the same type </h2>
 
-        <p>
-	  The type of <code>Map.symmetric_diff</code>, which
-          follows, requires that the two maps it compares have the
-          same comparator type. Each comparator has a distinct
-          abstract type, so the type of a comparator identifies the
-          comparator uniquely.</p>
-
-
-        <p>
-	  This constraint is important because the algorithm
-          that <code>Map.symmetric_diff</code> uses depends for its
-          correctness on the fact that both maps have the same
-          comparator.</p>
-
-        <p>
-	  We can create a new comparator using
-          the <code>Comparator.Make</code> functor, which takes as its
-          input a module containing the type of the object to be
-          compared, sexp converter functions, and a comparison
-          function. The sexp converters are included in the comparator
-          to make it possible for users of the comparator to generate
-          better error messages. Here's an example:
-
-	  <idx>Sexplib package/sexp converter</idx></p>
-
-        <link rel="import" part="7.old"
-	      href="code/maps-and-hash-tables/main.topscript" />
-
-        <p>
-	  As you can see in the following code,
-          both <code>Reverse.comparator_witness</code>
-          and <code>String.comparator_witness</code> can be used to
-          create maps with a key type of <code>string</code>:</p>
-
-        <link rel="import" part="8.old"
-	      href="code/maps-and-hash-tables/main.topscript" />
-
-        <p>
-	  <code>Map.min_elt</code> returns the key and value for
-          the smallest key in the map, which lets us see that these
-          two maps do indeed use different comparison functions:</p>
-
-        <link rel="import" part="9.old"
-	      href="code/maps-and-hash-tables/main.topscript" />
-
-        <p>
-	  Accordingly, if we try to use
-          <code>Map.symmetric_diff</code> on these two maps, we'll
-          get a compile-time error:</p>
-
-        <link rel="import" part="10.old"
-	      href="code/maps-and-hash-tables/main.topscript" />
-
-	</section>
-	<section id="trees" data-type="sect2">
-          <h2>Trees</h2>
-
           <p>
-	    As we've discussed, maps carry within them the comparator
-            that they were created with. Sometimes, for space
-            efficiency reasons, you want a version of the map data
-            structure that doesn't include the comparator. You can get
-            such a representation with <code>Map.to_tree</code>, which
-            returns just the tree underlying the map, without the
-            comparator:
+	    We still haven't really explained why maps have a
+	    comparator witness, that third type parameter that
+	    identifies the comparison function in use.  We'll do that
+	    now.
+	  </p>
 
-	    <idx>Map module/Map.to_tree</idx>
-	    <idx>maps/tree structure</idx></p>
+	  <p>
+	    To see how the comparator witness comes into play,
+	    consider the type of <code>Map.merge</code>, which is a
+	    function for combining two maps into one.
+	  </p>
 
-          <link rel="import" part="11.old"
+          <link rel="import" part="dc.1"
 		href="code/maps-and-hash-tables/main.topscript" />
 
-          <p>
-	    Even though a <code>Map.Tree.t</code> doesn't physically
-            include a comparator, it does include the comparator in its
-            type. This is what is known as a <em>phantom type</em>,
-            because it reflects something about the logic of the value
-            in question, even though it doesn't correspond to any
-            values directly represented in the underlying physical
-            structure of the value.</p>
+	  <p>
+	    If you read the signature carefully, you'll see that the
+	    type of the data can be different in all three maps, as
+	    indicated by the different type
+	    variables, <code>'v1</code>, <code>'v2</code>,
+	    and <code>'v3</code> for the two input maps and the
+	    resulting map respectively.
+	  </p>
 
-          <p>
-	    Since the comparator isn't included in the tree, we need
-            to provide the comparator explicitly when we, say, search
-            for a key, as shown below:</p>
+	  <p>
+	    The type of the key, <code>'k</code>, and the type of the
+	    comparator, <code>'cmp</code>, however, have to be the
+	    same throughout.  This means that both the type of the key
+	    and the comparison function used on keys must match up.
+	    This matters because the algorithm used
+	    by <code>Map.merge</code> depends for its efficiency and
+	    correctness on the fact that the keys of its two arguments
+	    are sorted in the same way.
+	  </p>
 
-          <link rel="import" part="12.old"
+	  <p>
+	    Let's see what happens if we try to
+	    use <code>Map.merge</code> on two maps with the same key
+	    that are sorted differently. First, we need to build a
+	    comparator for something other than the default comparison
+	    function for some type. We do that below.
+	  </p>
+
+          <link rel="import" part="dc.2"
+		href="code/maps-and-hash-tables/main.topscript" />
+	  
+	  <p>
+	    As the following example demonstrates, the ordering
+	    induced by maps constructed with <code>String</code>
+	    and <code>Rev_string</code> are in fact different.
+	  </p>
+
+          <link rel="import" part="dc.3"
 		href="code/maps-and-hash-tables/main.topscript" />
 
-          <p>
-	    The algorithm of <code>Map.Tree.find</code> depends on
-            the fact that it's using the same comparator when looking
-            up a value as you were when you stored it. That's the
-            invariant that the phantom type is there to enforce. As you
-            can see in the following example, using the wrong
-            comparator will lead to a type error:</p>
+	  <p>
+	    Now, let's see what happens if we try to merge together
+	    two maps, one built with the <code>String</code>
+	    comparator, and one with the <code>Rev_string</code>
+	    comparator.
+	  </p>
 
-          <link rel="import" href="code/maps-and-hash-tables/main.topscript" part="13"/>
+          <link rel="import" part="dc.4"
+		href="code/maps-and-hash-tables/main.topscript" />
+	  
+	  <p>
+	    As you can see, OCaml warns us that the two comparators
+	    are incompatible.
+	  </p>
+
+	  <p>
+	    The example here is a little artificial, but this is a
+	    real world issue. For one thing, there are occasional but
+	    important situations where you need multiple comparison
+	    functions for the same object. For example, you might want
+	    different comparison functions to indicate different
+	    priority orderings of the same underlying object. In these
+	    cases, it's good to have the type system to help you avoid
+	    doing crazy things.
+	  </p>
+
+	  <p>
+	    Another common case you might run into is when dealing
+	    with the comparison that comes from the default per-type
+	    comparison function, of the kind that you get
+	    from <code>[@@deriving compare]</code>, and the comparison
+	    function induced by OCaml's general-purpose (but
+	    problematic!) polymorphic comparison function. We'll talk
+	    about polymorphic compare later in the chapter, but the
+	    observation here is that the comparator helps you avoid
+	    mixing polymorphic comparison with other type-specific
+	    comparison functions.
+	  </p>
 	</section>
 
 	<section id="the-polymorphic-comparator" data-type="sect2">
@@ -851,14 +846,17 @@
 	  <code>Hashtbl.change</code>, but we also need to call
 	  <code>Hashtbl.copy</code> to take snapshots of the table:</p>
 
-	<link rel="import" href="code/maps-and-hash-tables/map_vs_hash2/map_vs_hash2.ml"/>
+	<link rel="import" 
+	      href="code/maps-and-hash-tables/map_vs_hash2/map_vs_hash2.ml"/>
 
 	<p>
 	  Unsurprisingly, maps perform far better than hash tables
 	  on this benchmark, in this case by more than a factor of
 	  10:</p>
-  <link rel="import" href="code/maps-and-hash-tables/map_vs_hash2/jbuild"/>
-	<link rel="import" href="code/maps-and-hash-tables/map_vs_hash2/run_map_vs_hash2.sh"/>
+	<link rel="import" 
+	      href="code/maps-and-hash-tables/map_vs_hash2/jbuild"/>
+	<link rel="import" 
+	      href="code/maps-and-hash-tables/map_vs_hash2/run_map_vs_hash2.sh"/>
 
 	<p>
 	  These numbers can be made more extreme by increasing the

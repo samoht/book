@@ -31,22 +31,22 @@ List.Assoc.add ~equal:Int.equal digit_alist 0 "zilch";;
 |}];;
 
 [@@@part "3"];;
-let digit_map =
-  Map.of_alist_exn (module Int)
-    [ 0, "zero"; 1, "one"; 2, "two"  ; 3, "three"; 4, "four"
-    ; 5, "five"; 6, "six"; 7, "seven"; 8, "eight"; 9, "nine" ]
-;;
+let digit_map = Map.of_alist_exn (module Int) digit_alist;;
 [%%expect ocaml {|val digit_map : (int, string, Int.comparator_witness) Map.t = <abstr>|}];;
 Map.find digit_map 6;;
 [%%expect ocaml {|- : string option = Some "six"|}];;
 Map.find digit_map 22;;
 [%%expect ocaml {|- : string option = None|}];;
-let zilch_map = Map.set digit_map 0 "zilch";;
-[%%expect ocaml {|val zilch_map : (int, string, Int.comparator_witness) Map.t = <abstr>|}];;
-Map.find zilch_map 0;;
-[%%expect ocaml {|- : string option = Some "zilch"|}];;
-Map.find digit_map 0;;
-[%%expect ocaml {|- : string option = Some "zero"|}];;
+Map.set digit_map 0 "zilch" |> Map.to_alist;;
+[%%expect ocaml {|
+- : (int * string) list =
+[(0, "zilch"); (1, "one"); (2, "two"); (3, "three"); (4, "four");
+ (5, "five"); (6, "six"); (7, "seven"); (8, "eight"); (9, "nine")]
+|}];;
+
+[@@@part "3.1"];;
+Map.of_alist_exn (module Int) [22, "three"; 22, "four"];;
+[%%expect{|Exception: ("Map.of_alist_exn: duplicate key" 22).|}];;
 
 [@@@part "4"];;
 [(3, "three")];;
@@ -233,157 +233,192 @@ Characters 12-19:
 Error: Unbound value rev_map
 |}];;
 
-[@@@part "10.old"];;
-Map.symmetric_diff ord_map rev_map;;
-[%%expect{|
-Characters 19-26:
-Error: Unbound value ord_map
+[@@@part "dc.1"];;
+Map.merge;;
+[%%expect ocaml {|
+- : ('k, 'v1, 'cmp) Map.t ->
+    ('k, 'v2, 'cmp) Map.t ->
+    f:(key:'k ->
+       [ `Both of 'v1 * 'v2 | `Left of 'v1 | `Right of 'v2 ] -> 'v3 option) ->
+    ('k, 'v3, 'cmp) Map.t
+= <fun>
 |}];;
 
-[@@@part "11.old"];;
-let ord_tree = Map.to_tree ord_map;;
-[%%expect{|
-Characters 15-26:
-Error: Unbound value Map.to_tree
+[@@@part "dc.2"];;
+module Rev_string = struct
+  type t = string
+  include Comparator.Make(struct
+      include String
+      let compare x y = String.compare y x
+    end);;
+end;;
+[%%expect ocaml {|
+module Rev_string :
+  sig
+    type t = string
+    type comparator_witness
+    val comparator : (t, comparator_witness) Comparator.t
+  end
 |}];;
 
-[@@@part "12.old"];;
-Map.Tree.find ~comparator:String.comparator ord_tree "snoo";;
+[@@@part "dc.3"];;
+Map.of_alist_exn (module String)
+  ["a",1; "b", 2; "c", 3]
+|> Map.min_elt;;
+[%%expect ocaml {|- : (string * int) option = Some ("a", 1)|}];;
+
+Map.of_alist_exn (module Rev_string)
+  ["a",1; "b", 2; "c", 3]
+|> Map.min_elt;;
+[%%expect ocaml {|- : (string * int) option = Some ("c", 3)|}];;
+
+
+[@@@part "dc.4"];;
+Map.merge
+  (Map.of_alist_exn (module Rev_string) ["a",1; "b", 2; "c", 3])
+  (Map.of_alist_exn (module String) ["b",3; "c", 1])
+  ~f:(fun ~key data ->
+    match data with `Left x -> x | `Right x -> x | `Both (x,y) -> x + y);;
 [%%expect{|
-Characters 0-13:
-Error: Unbound module Map.Tree
+Characters 77-127:
+Error: This expression has type
+         (string, int, String.comparator_witness) Map.t
+       but an expression was expected of type
+         (string, int, Rev_string.comparator_witness) Map.t
+       Type String.comparator_witness is not compatible with type
+         Rev_string.comparator_witness 
 |}];;
 
-[@@@part "13"];;
-Map.Tree.find ~comparator:Reverse.comparator ord_tree "snoo";;
-[%%expect{|
-Characters 0-13:
-Error: Unbound module Map.Tree
+[@@@part "pc.1"];;
+Core_kernel.Map.Poly.of_alist digit_alist;;
+[%%expect ocaml {|
+- : [ `Duplicate_key of int | `Ok of (int, string) Core_kernel.Map.Poly.t ] =
+`Ok <abstr>
 |}];;
 
 [@@@part "14"];;
-Map.of_alist_exn ~comparator:Comparator.Poly.comparator digit_alist;;
-[%%expect{|
-Characters 29-55:
-Error: The function applied to this argument has type
-         ('a * 'b) list -> ('a, 'b, 'c) Map.t
-This argument cannot be applied with label ~comparator
+Map.of_alist_exn (Comparator.Poly.comparator digit_alist;;
+                  [%%expect{|
+Characters 56-58:
+Error: Syntax error: ')' expected
+Characters 17-18:
+Error: This '(' might be unmatched
 |}];;
 
-[@@@part "15"];;
+                  [@@@part "15"];;
 Map.Poly.of_alist_exn digit_alist;;
-[%%expect{|
-Characters 0-21:
+                  [%%expect{|
+Characters 18-39:
 Error: Unbound module Map.Poly
 |}];;
 
-[@@@part "16"];;
+                  [@@@part "16"];;
 Map.symmetric_diff
-  (Map.Poly.singleton 3 "three")
-  (Int.Map.singleton  3 "four" )
-;;
-[%%expect{|
-Characters 22-40:
+                    (Map.Poly.singleton 3 "three")
+                    (Int.Map.singleton  3 "four" )
+                  ;;
+                  [%%expect{|
+Characters 58-76:
 Error: Unbound module Map.Poly
 |}];;
 
-[@@@part "17"];;
+                  [@@@part "17"];;
 let dedup ~comparator l =
-  List.fold l ~init:(Set.empty ~comparator) ~f:Set.add
-  |> Set.to_list
-;;
-[%%expect{|
-Characters 58-68:
+                    List.fold l ~init:(Set.empty ~comparator) ~f:Set.add
+                    |> Set.to_list
+                  ;;
+                  [%%expect{|
+Characters 94-104:
 Error: The function applied to this argument has type
          ('a, 'b) Set.comparator -> ('a, 'b) Set.t
 This argument cannot be applied with label ~comparator
 |}];;
-dedup ~comparator:Int.comparator [8;3;2;3;7;8;10];;
-[%%expect{|
-Characters 0-5:
+                  dedup ~comparator:Int.comparator [8;3;2;3;7;8;10];;
+                  [%%expect{|
+Characters 18-23:
 Error: Unbound value dedup
 |}];;
 
-[@@@part "18"];;
+                  [@@@part "18"];;
 let s1 = Int.Set.of_list [1;2];;
-[%%expect{|
-Characters 9-24:
+                  [%%expect{|
+Characters 27-42:
 Error: Unbound module Int.Set
 |}];;
-let s2 = Int.Set.of_list [2;1];;
-[%%expect{|
-Characters 9-24:
+                  let s2 = Int.Set.of_list [2;1];;
+                  [%%expect{|
+Characters 27-42:
 Error: Unbound module Int.Set
 |}];;
 
-[@@@part "19"];;
+                  [@@@part "19"];;
 Set.equal s1 s2;;
-[%%expect{|
-Characters 10-12:
+                  [%%expect{|
+Characters 28-30:
 Error: Unbound value s1
 |}];;
 
-[@@@part "20"];;
+                  [@@@part "20"];;
 s1 = s2;;
-[%%expect{|
-Characters 0-2:
+                  [%%expect{|
+Characters 18-20:
 Error: Unbound value s1
 |}];;
 
-[@@@part "21"];;
+                  [@@@part "21"];;
 Set.to_tree s1 = Set.to_tree s2;;
-[%%expect{|
-Characters 0-11:
+                  [%%expect{|
+Characters 18-29:
 Error: Unbound value Set.to_tree
 |}];;
 
-[@@@part "22"];;
+                  [@@@part "22"];;
 module Foo_and_bar : sig
-  type t = { foo: Int.Set.t; bar: string }
-  include Comparable.S with type t := t
-end = struct
-  module T = struct
-    type t = { foo: Int.Set.t; bar: string } [@@deriving sexp]
-    let compare t1 t2 =
-      let c = Int.Set.compare t1.foo t2.foo in
-      if c <> 0 then c else String.compare t1.bar t2.bar
-  end
-  include T
-  include Comparable.Make(T)
-end;;
-[%%expect{|
-Characters 161-170:
+                    type t = { foo: Int.Set.t; bar: string }
+                    include Comparable.S with type t := t
+                  end = struct
+                    module T = struct
+                      type t = { foo: Int.Set.t; bar: string } [@@deriving sexp]
+                      let compare t1 t2 =
+                        let c = Int.Set.compare t1.foo t2.foo in
+                        if c <> 0 then c else String.compare t1.bar t2.bar
+                    end
+                    include T
+                    include Comparable.Make(T)
+                  end;;
+                  [%%expect{|
+Characters 269-278:
 Error: Unbound module Int.Set
 |}];;
 
-[@@@part "23"];;
+                  [@@@part "23"];;
 module Foo_and_bar : sig
-  type t = { foo: Int.Set.t; bar: string }
-  include Comparable.S with type t := t
-end = struct
-  module T = struct
-    type t = { foo: Int.Set.t; bar: string } [@@deriving sexp, compare]
-  end
-  include T
-  include Comparable.Make(T)
-end;;
-[%%expect{|
-Characters 161-170:
+                    type t = { foo: Int.Set.t; bar: string }
+                    include Comparable.S with type t := t
+                  end = struct
+                    module T = struct
+                      type t = { foo: Int.Set.t; bar: string } [@@deriving sexp, compare]
+                    end
+                    include T
+                    include Comparable.Make(T)
+                  end;;
+                  [%%expect{|
+Characters 269-278:
 Error: Unbound module Int.Set
 |}];;
 
-[@@@part "24"];;
+                  [@@@part "24"];;
 module Foo_and_bar : sig
-  type t = { foo: int; bar: string }
-  include Comparable.S with type t := t
-end = struct
-  module T = struct
-    type t = { foo: int; bar: string } [@@deriving sexp]
-  end
-  include T
-  include Comparable.Poly(T)
-end;;
-[%%expect ocaml {|
+                    type t = { foo: int; bar: string }
+                    include Comparable.S with type t := t
+                  end = struct
+                    module T = struct
+                      type t = { foo: int; bar: string } [@@deriving sexp]
+                    end
+                    include T
+                    include Comparable.Poly(T)
+                  end;;
+                  [%%expect ocaml {|
 module Foo_and_bar :
   sig
     type t = { foo : int; bar : string; }
@@ -399,68 +434,68 @@ module Foo_and_bar :
   end
 |}];;
 
-[@@@part "25"];;
+                  [@@@part "25"];;
 let table = Hashtbl.create ~hashable:String.hashable ();;
-[%%expect{|
-Characters 37-52:
+                  [%%expect{|
+Characters 55-70:
 Error: The function applied to this argument has type
          ?growth_allowed:bool -> ?size:int -> unit -> ('a, 'b) Hashtbl.t
 This argument cannot be applied with label ~hashable
 |}];;
-Hashtbl.set table ~key:"three" ~data:3;;
-[%%expect{|
-Characters 12-17:
+                  Hashtbl.set table ~key:"three" ~data:3;;
+                  [%%expect{|
+Characters 30-35:
 Error: Unbound value table
 |}];;
-Hashtbl.find table "three";;
-[%%expect{|
-Characters 13-18:
+                  Hashtbl.find table "three";;
+                  [%%expect{|
+Characters 31-36:
 Error: Unbound value table
 |}];;
 
-[@@@part "26"];;
+                  [@@@part "26"];;
 let table = String.Table.create ();;
-[%%expect{|
-Characters 12-31:
+                  [%%expect{|
+Characters 30-49:
 Error: Unbound module String.Table
 |}];;
 
-[@@@part "27"];;
+                  [@@@part "27"];;
 let table = Hashtbl.create ~hashable:Hashtbl.Poly.hashable ();;
-[%%expect{|
-Characters 37-58:
+                  [%%expect{|
+Characters 55-76:
 Error: The function applied to this argument has type
          ?growth_allowed:bool -> ?size:int -> unit -> ('a, 'b) Hashtbl.t
 This argument cannot be applied with label ~hashable
 |}];;
 
-[@@@part "28"];;
+                  [@@@part "28"];;
 let table = Hashtbl.Poly.create ();;
-[%%expect ocaml {|val table : ('_weak1, '_weak2) Hashtbl.t = <abstr>|}];;
+                  [%%expect ocaml {|val table : ('_weak1, '_weak2) Hashtbl.t = <abstr>|}];;
 
-[@@@part "29"];;
+                  [@@@part "29"];;
 Caml.Hashtbl.hash (List.range 0 9);;
-[%%expect ocaml {|- : int = 209331808|}];;
-Caml.Hashtbl.hash (List.range 0 10);;
-[%%expect ocaml {|- : int = 182325193|}];;
-Caml.Hashtbl.hash (List.range 0 11);;
-[%%expect ocaml {|- : int = 182325193|}];;
-Caml.Hashtbl.hash (List.range 0 100);;
-[%%expect ocaml {|- : int = 182325193|}];;
+                  [%%expect ocaml {|- : int = 209331808|}];;
+                  Caml.Hashtbl.hash (List.range 0 10);;
+                  [%%expect ocaml {|- : int = 182325193|}];;
+                  Caml.Hashtbl.hash (List.range 0 11);;
+                  [%%expect ocaml {|- : int = 182325193|}];;
+                  Caml.Hashtbl.hash (List.range 0 100);;
+                  [%%expect ocaml {|- : int = 182325193|}];;
 
-[@@@part "30"];;
+                  [@@@part "30"];;
 module Foo_and_bar : sig
-  type t = { foo: int; bar: string }
-  include Hashable.S with type t := t
-end = struct
-  module T = struct
-    type t = { foo: int; bar: string } [@@deriving sexp, compare, hash]
-  end
-  include T
-  include Hashable.Make(T)
-end;;
-[%%expect{|
-Characters 233-246:
+                    type t = { foo: int; bar: string }
+                    include Hashable.S with type t := t
+                  end = struct
+                    module T = struct
+                      type t = { foo: int; bar: string } [@@deriving sexp, compare, hash]
+                    end
+                    include T
+                    include Hashable.Make(T)
+                  end;;
+                  [%%expect{|
+Characters 395-408:
 Error: Unbound module Hashable
 Hint: Did you mean Hashtbl or Hashtbl?
 |}];;
