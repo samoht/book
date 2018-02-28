@@ -32,19 +32,19 @@ let rec fib i =
 [%%expect ocaml {|val fib : int -> int = <fun>|}];;
 [@@@part "2"];;
 time (fun () -> fib 20);;
-[%%expect{|Time: 1.12414360046 ms|};
+[%%expect{|Time: 1.61409378052 ms|};
 ocaml {|- : int = 10946|}];;
 time (fun () -> fib 40);;
-[%%expect{|Time: 18263.7000084 ms|};
+[%%expect{|Time: 28029.3130875 ms|};
 ocaml {|- : int = 165580141|}];;
 [@@@part "3"];;
 let fib = memoize fib;;
 [%%expect ocaml {|val fib : int -> int = <fun>|}];;
 time (fun () -> fib 40);;
-[%%expect{|Time: 18122.092247 ms|};
+[%%expect{|Time: 27533.8690281 ms|};
 ocaml {|- : int = 165580141|}];;
 time (fun () -> fib 40);;
-[%%expect{|Time: 0.00596046447754 ms|};
+[%%expect{|Time: 0.00619888305664 ms|};
 ocaml {|- : int = 165580141|}];;
 [@@@part "4"];;
 let fib_norec fib i =
@@ -78,7 +78,7 @@ let memo_rec f_norec x =
 let fib = memo_rec fib_norec;;
 [%%expect ocaml {|val fib : int -> int = <fun>|}];;
 time (fun () -> fib 40);;
-[%%expect{|Time: 0.0388622283936 ms|};
+[%%expect{|Time: 0.0650882720947 ms|};
 ocaml {|- : int = 102334155|}];;
 [@@@part "9"];;
 let fib = memo_rec (fun fib i ->

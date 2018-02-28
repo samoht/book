@@ -31,13 +31,13 @@ List.Assoc.add ~equal:Int.equal digit_alist 0 "zilch";;
 |}];;
 
 [@@@part "3"];;
-let digit_map = Map.of_alist_exn digit_alist ~comparator:Int.comparator;;
+let digit_map = Map.of_alist_exn (module Int) digit_alist;;
 [%%expect ocaml {|val digit_map : (int, string, Int.comparator_witness) Map.t = <abstr>|}];;
 Map.find digit_map 3;;
 [%%expect ocaml {|- : string option = Some "three"|}];;
 
 [@@@part "4"];;
-let zilch_map = Map.add digit_map ~key:0 ~data:"zilch";;
+let zilch_map = Map.set digit_map ~key:0 ~data:"zilch";;
 [%%expect ocaml {|val zilch_map : (int, string, Int.comparator_witness) Map.t = <abstr>|}];;
 
 [@@@part "5"];;
@@ -62,15 +62,19 @@ Map.symmetric_diff;;
 |}];;
 
 [@@@part "7"];;
-module Reverse = Comparator.Make(struct
+module Reverse = struct
+  module T = struct
     type t = string
-    let sexp_of_t = String.sexp_of_t
-    let t_of_sexp = String.t_of_sexp
     let compare x y = String.compare y x
-  end);;
+    let sexp_of_t = String.sexp_of_t
+  end
+  include T
+  include Comparator.Make(T)
+end;;
 [%%expect ocaml {|
 module Reverse :
   sig
+   type t
     type comparator_witness
     val comparator : (string, comparator_witness) Comparator.t
   end
@@ -79,9 +83,9 @@ module Reverse :
 [@@@part "8"];;
 let alist = ["foo", 0; "snoo", 3];;
 [%%expect ocaml {|val alist : (string * int) list = [("foo", 0); ("snoo", 3)]|}];;
-let ord_map = Map.of_alist_exn ~comparator:String.comparator alist;;
+let ord_map = Map.of_alist_exn (module String) alist;;
 [%%expect ocaml {|val ord_map : (string, int, String.comparator_witness) Map.t = <abstr>|}];;
-let rev_map = Map.of_alist_exn ~comparator:Reverse.comparator alist;;
+let rev_map = Map.of_alist_exn (module Reverse) alist;;
 [%%expect ocaml {|val rev_map : (string, int, Reverse.comparator_witness) Map.t = <abstr>|}];;
 
 [@@@part "9"];;
@@ -123,7 +127,7 @@ Error: This expression has type
 |}];;
 
 [@@@part "14"];;
-Map.of_alist_exn ~comparator:Comparator.Poly.comparator digit_alist;;
+Map.of_alist_exn (module Comparator.Poly) digit_alist;;
 [%%expect ocaml {|- : (int, string, Comparator.Poly.comparator_witness) Map.t = <abstr>|}];;
 
 [@@@part "15"];;
@@ -147,7 +151,7 @@ Error: This expression has type
 
 [@@@part "17"];;
 let dedup ~comparator l =
-  List.fold l ~init:(Set.empty ~comparator) ~f:Set.add
+  List.fold l ~init:(Set.empty comparator) ~f:Set.add
   |> Set.to_list
 ;;
 [%%expect ocaml {|val dedup : comparator:('a, 'b) Comparator.t -> 'a list -> 'a list = <fun>|}];;
@@ -269,7 +273,7 @@ module Foo_and_bar :
 |}];;
 
 [@@@part "25"];;
-let table = Hashtbl.create ~hashable:String.hashable ();;
+let table = String.Table.create ();;
 [%%expect ocaml {|val table : (string, '_a) Hashtbl.t = <abstr>|}];;
 Hashtbl.set table ~key:"three" ~data:3;;
 [%%expect ocaml {|- : unit = ()|}];;
@@ -281,7 +285,7 @@ let table = String.Table.create ();;
 [%%expect ocaml {|val table : '_a String.Table.t = <abstr>|}];;
 
 [@@@part "27"];;
-let table = Hashtbl.create ~hashable:Hashtbl.Poly.hashable ();;
+let table = Hashtbl.create ();;
 [%%expect ocaml {|val table : ('_a, '_b) Hashtbl.t = <abstr>|}];;
 
 [@@@part "28"];;

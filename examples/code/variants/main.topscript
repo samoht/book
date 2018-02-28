@@ -7,6 +7,7 @@
 #silent false;;
 [@@@part "0.5"];;
 open Base;;
+open Stdio;;
 type basic_color =
   | Black | Red | Green | Yellow | Blue | Magenta | Cyan | White ;;
 [%%expect ocaml {|
@@ -33,7 +34,7 @@ List.map ~f:basic_color_to_int [Blue;Red];;
 [%%expect ocaml {|- : int list = [4; 1]|}];;
 [@@@part "2"];;
 let color_by_number number text =
-  sprintf "\027[38;5;%dm%s\027[0m" number text;;
+  Printf.sprintf "\027[38;5;%dm%s\027[0m" number text;;
 [%%expect ocaml {|val color_by_number : int -> string -> string = <fun>|}];;
 let blue = color_by_number (basic_color_to_int Blue) "Blue";;
 [%%expect ocaml {|val blue : string = "\027[38;5;4mBlue\027[0m"|}];;
@@ -102,25 +103,32 @@ let is_positive = function
   | `Int   x -> x > 0
   | `Float x -> x > 0.
 ;;
-[%%expect ocaml {|val is_positive : [< `Float of float | `Int of int ] -> bool = <fun>|}];;
+[%%expect{|
+Characters 69-71:
+Error: This expression has type float but an expression was expected of type
+         int
+|}];;
 [@@@part "9"];;
 let exact = List.filter ~f:is_positive [three;four];;
-[%%expect ocaml {|val exact : [ `Float of float | `Int of int ] list = [`Int 3; `Float 4.]|}];;
+[%%expect{|
+Characters 27-38:
+Error: Unbound value is_positive
+|}];;
 [@@@part "10"];;
 let is_positive = function
   | `Int   x -> Ok (x > 0)
   | `Float x -> Ok (x > 0.)
   | `Not_a_number -> Error "not a number";;
-[%%expect ocaml {|
-val is_positive :
-  [< `Float of float | `Int of int | `Not_a_number ] -> (bool, string) result =
-  <fun>
+[%%expect{|
+Characters 78-80:
+Error: This expression has type float but an expression was expected of type
+         int
 |}];;
 List.filter [three; four] ~f:(fun x ->
   match is_positive x with Error _ -> false | Ok b -> b);;
-[%%expect ocaml {|
-- : [< `Float of float | `Int of int | `Not_a_number > `Float `Int ] list =
-[`Int 3; `Float 4.]
+[%%expect{|
+Characters 47-58:
+Error: Unbound value is_positive
 |}];;
 [@@@part "11"];;
 type extended_color =
@@ -230,14 +238,24 @@ let is_positive_permissive = function
   | `Float x -> Ok (x > 0.)
   | _ -> Error "Unknown number type"
 ;;
-[%%expect ocaml {|
-val is_positive_permissive :
-  [> `Float of float | `Int of int ] -> (bool, string) result = <fun>
+[%%expect{|
+Characters 89-91:
+Error: This expression has type float but an expression was expected of type
+         int
 |}];;
 is_positive_permissive (`Int 0);;
-[%%expect ocaml {|- : (bool, string) result = Ok false|}];;
+[%%expect{|
+Characters 0-22:
+Error: Unbound value is_positive_permissive
+|}];;
 is_positive_permissive (`Ratio (3,4));;
-[%%expect ocaml {|- : (bool, string) result = Error "Unknown number type"|}];;
+[%%expect{|
+Characters 0-22:
+Error: Unbound value is_positive_permissive
+|}];;
 [@@@part "17"];;
 is_positive_permissive (`Floot 3.5);;
-[%%expect ocaml {|- : (bool, string) result = Error "Unknown number type"|}];;
+[%%expect{|
+Characters 0-22:
+Error: Unbound value is_positive_permissive
+|}];;

@@ -6,10 +6,11 @@
 #require "ppx_jane";;
 #silent false;;
 open Base;;
+open Stdio;;
 [@@@part "1"];;
 let sum_file filename =
   let file = In_channel.create filename in
-  protect ~f:(fun () ->
+  Exn.protect ~f:(fun () ->
     let numbers = List.map ~f:Int.of_string (In_channel.input_lines file) in
     List.fold ~init:0 ~f:(+) numbers)
     ~finally:(fun () -> In_channel.close file)
