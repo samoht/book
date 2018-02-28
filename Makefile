@@ -7,6 +7,9 @@ all:
 code:
 	jbuilder build @code --dev
 
+promote:
+	jbuilder promote
+
 dep:
 	jbuilder exec --dev -- rwo-jbuild
 
