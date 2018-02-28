@@ -700,7 +700,7 @@ let document_of_phrases contents matched phrases =
   let parts = parts_of_phrase "" [] phrases in
   Document.v ~matched ~parts
 
-let process_expect_file ~run_nondeterministic ~fname ~dry_run ~use_color:_ ~in_place ~sexp_output =
+let process_expect_file ~run_nondeterministic ~fname ~dry_run ~use_color:_ ~sexp_output =
   let file_contents =
     let ic = open_in fname in
     let len = in_channel_length ic in
@@ -710,9 +710,8 @@ let process_expect_file ~run_nondeterministic ~fname ~dry_run ~use_color:_ ~in_p
   in
   let phrases = eval_phrases ~run_nondeterministic ~fname ~dry_run file_contents in
   let success, phrases = validate_phrases run_nondeterministic phrases in
-  let oname = if in_place then fname else fname ^ ".corrected" in
-  if success && not in_place && Sys.file_exists oname then
-    Sys.remove oname;
+  let oname = fname ^ ".corrected" in
+  if success && Sys.file_exists oname then Sys.remove oname;
   let phrases =
     if success then phrases
     else (
@@ -743,7 +742,6 @@ let override_sys_argv args =
 ;;
 
 let use_color   = ref true
-let in_place    = ref false
 let sexp_output = ref false
 let dry_run     = ref false
 let run_nondeterministic = ref false
@@ -761,15 +759,14 @@ let process_file fname =
     process_expect_file ~fname
       ~run_nondeterministic:!run_nondeterministic
       ~dry_run:!dry_run ~use_color:!use_color
-      ~in_place:!in_place ~sexp_output:!sexp_output
+      ~sexp_output:!sexp_output
   in
   exit 0
 ;;
 
 let args =
   Arg.align
-    [ "-in-place", Arg.Set in_place,    " Overwrite file in place"
-    ; "-sexp"    , Arg.Set sexp_output, " Output the result as a s-expression instead of diffing"
+    [ "-sexp"    , Arg.Set sexp_output, " Output the result as a s-expression instead of diffing"
     ; "-verbose" , Arg.Set verbose, " Include outcome of phrase evaluation (like ocaml toplevel)"
     ; "-dry-run" , Arg.Set dry_run, " Don't execute code, only return expected outcome"
     ; "-run-nondeterministic" , Arg.Set run_nondeterministic, " Run non-deterministic tests"
