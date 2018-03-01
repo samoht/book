@@ -64,18 +64,11 @@ let sexp_deps_of_chapter file =
   fold (fun a n -> R.attribute "href" n :: a) [] |>
   List.sort_uniq String.compare
 
-let needs_sexp_file = [ ".sh"; ".errsh" ]
-
 let jbuild_for_chapter base_dir file =
   let examples_dir = "../examples" in
   let deps =
     sexp_deps_of_chapter (Filename.concat base_dir file) |>
-    List.map (fun f ->
-        if List.mem (Filename.extension f) needs_sexp_file then
-          sprintf "%s/%s.sexp" examples_dir f
-        else
-          sprintf "%s/%s" examples_dir f
-      ) |>
+    List.map (fun f -> sprintf "%s/%s" examples_dir f) |>
     List.map (fun s -> "     " ^ s) |>
     String.concat "\n" in
   sprintf {|
@@ -132,20 +125,20 @@ let topscript_rule ~dep f =
  ((name    code)
   (deps    (%s %s))
   (action  (progn
-    (setenv OCAMLRUNPARAM "" (run ocaml-topexpect -short-paths -verbose ${<}))
-    (diff? %s %s.corrected)
-    ))
-  )) |} f dep f f
+    (setenv OCAMLRUNPARAM "" (run ocaml-topexpect -short-paths -verbose %s))
+    (diff? %s %s.corrected)))))|}
+    f dep f f f
 
 let sh_rule ~dep f =
-  (* see https://github.com/ocaml/dune/issues/431 is answered *)
   sprintf {|
-(alias ((name sexp) (deps (%s.sexp))))
-(rule
-  ((targets (%s.sexp))
-  (deps (%s %s))
-  (fallback)
-  (action (setenv TERM dumb (with-stdout-to ${@} (run rwo-build eval ${<})))))) |} f f f dep
+(alias
+ ((name     cram)
+  (deps     (%s %s))
+  (action
+    (progn
+     (run ${ROOT}/cram/cram.exe %s)
+     (diff? %s %s.corrected)))))|}
+    f dep f f f
 
 type extra_deps = (string * string list) list [@@deriving sexp]
 

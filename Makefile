@@ -1,4 +1,4 @@
-.PHONY: all clean dep code publish
+.PHONY: all clean dep code publish cram
 
 all:
 	@jbuilder build @site --dev
@@ -6,6 +6,9 @@ all:
 
 code:
 	jbuilder build @code --dev
+
+cram:
+	jbuilder build @cram --dev
 
 promote:
 	jbuilder promote
