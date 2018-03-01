@@ -1,6 +1,6 @@
 (library
- ((name ocaml_topexpect)
+ ((name        ocaml_topexpect)
   (public_name ocaml-topexpect)
-  (synopsis "OCaml toplevel interface to expect-style documentation")
-  (preprocess (pps (ppx_sexp_conv)))
-  (libraries (sexplib))))
+  (synopsis    "OCaml toplevel interface to expect-style documentation")
+  (preprocess  (pps (ppx_sexp_conv)))
+  (libraries   (sexplib compiler-libs))))
