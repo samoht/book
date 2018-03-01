@@ -37,6 +37,7 @@ end
 module Raw: sig
   type t
   val v: fname:string -> string -> t
+  val of_file: string -> t
   val position_mapper: Lexing.position -> Ast_mapper.mapper
 end
 
@@ -49,21 +50,25 @@ module Phrase: sig
 
   val read: Raw.t -> t option
 
-  type 'a role =
+  type 'a kind =
     | Code of 'a
     | Expect of { location: Location.t;
                   responses: Chunk.response list;
                   nondeterministic: bool }
     | Part of { location: Location.t; name: string }
 
-  val role: t -> unit role
+  val kind: t -> unit kind
+
+  type v = (Chunk.kind * string) list kind
+  (** The type for evaluated phrases. *)
+
+  val read_all: Raw.t -> (t * v) list
+  (** [read_all d] is the list of phrases where [Code] parameters are
+      filled with what is in the corresponding [Expext] segments. *)
 
   val whitespace: Raw.t -> t -> (t * 'a) list -> string
 
-  val dry_exec: (t * unit role) list -> (t * (Chunk.kind * string) list role) list
-
-  val document_of_phrases:
-    Raw.t -> bool -> (t * (Chunk.kind * string) list role) list -> Document.t
+  val document_of_phrases: Raw.t -> bool -> (t * v) list -> Document.t
 
   val contents: Raw.t -> ?start:int -> ?stop:int -> t -> string
 

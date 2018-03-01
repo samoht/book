@@ -228,17 +228,12 @@ let eval_phrases ~run_nondeterministic ~dry_run doc =
     else
       Code (cleanup_lines (List.rev !lines))
   in
-  if dry_run then  (
-    let rec aux phrases = match Phrase.read doc with
-      | None        ->  List.rev phrases
-      | Some phrase -> aux ((phrase, Phrase.role phrase) :: phrases)
-    in
-    Phrase.dry_exec (aux [])
-  ) else (
+  if dry_run then Phrase.read_all doc
+  else (
     redirect ~f:(fun ~capture ->
         capture_compiler_stuff ppf ~f:(fun () ->
             let rec process_phrase chunks phrase =
-              match Phrase.role phrase with
+              match Phrase.kind phrase with
               | Expect x ->
                 next_phrase ((phrase, Expect {x with responses = cleanup_lines x.responses}) :: chunks)
               | Part _ as x ->
@@ -248,7 +243,7 @@ let eval_phrases ~run_nondeterministic ~dry_run doc =
                 | None         ->
                   List.rev ((phrase, exec_code ~capture phrase) :: chunks)
                 | Some phrase' ->
-                  let role = match Phrase.role phrase' with
+                  let role = match Phrase.kind phrase' with
                     | Expect { nondeterministic = true; responses; _ }
                       when not run_nondeterministic -> Code responses
                     | _ -> exec_code ~capture phrase
@@ -479,14 +474,7 @@ let output_phrases oc d =
 
 
 let process_expect_file ~run_nondeterministic ~fname ~dry_run ~use_color:_ ~sexp_output =
-  let file_contents =
-    let ic = open_in fname in
-    let len = in_channel_length ic in
-    let result = really_input_string ic len in
-    close_in_noerr ic;
-    result
-  in
-  let doc = Raw.v ~fname file_contents in
+  let doc = Raw.of_file fname in
   let phrases = eval_phrases ~run_nondeterministic ~dry_run doc in
   let success, phrases = validate_phrases run_nondeterministic phrases in
   let oname = fname ^ ".corrected" in

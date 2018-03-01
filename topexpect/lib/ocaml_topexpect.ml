@@ -90,6 +90,13 @@ module Raw = struct
     Location.input_name := fname;
     { contents; lexbuf }
 
+  let of_file fname =
+    let ic = open_in fname in
+    let len = in_channel_length ic in
+    let result = really_input_string ic len in
+    close_in_noerr ic;
+    v ~fname result
+
   let shift_location_error start =
     let open Location in
     let rec aux (error : Location.error) =
@@ -153,12 +160,14 @@ module Phrase = struct
 
   (** *)
 
-  type 'a role =
+  type 'a kind =
     | Code of 'a
     | Expect of { location: Location.t;
                   responses: Chunk.response list;
                   nondeterministic: bool }
     | Part of { location: Location.t; name: string }
+
+  type v = (Chunk.kind * string) list kind
 
   exception Cannot_parse_payload of Location.t
 
@@ -197,7 +206,7 @@ module Phrase = struct
 
   let attr_is x name = x.Asttypes.txt = name
 
-  let role phrase = match phrase.parsed with
+  let kind phrase = match phrase.parsed with
     | Ok (Ptop_def [{pstr_desc = Pstr_extension((attr, payload), _attrs); pstr_loc}])
       when List.exists (attr_is attr) ["expect"; "expect.nondeterministic"] ->
       begin match payload_strings pstr_loc payload with
@@ -296,5 +305,12 @@ module Phrase = struct
         aux (phrase :: acc) rest
     in
     aux [] phrases
+
+  let read_all doc =
+    let rec aux phrases = match read doc with
+      | None        ->  List.rev phrases
+      | Some phrase -> aux ((phrase, kind phrase) :: phrases)
+    in
+    dry_exec (aux [])
 
 end
