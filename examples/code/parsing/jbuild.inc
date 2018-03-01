@@ -1,9 +1,7 @@
 (jbuild_version 1)
 
-(alias ((name sexp) (deps (build_short_parser.sh.sexp))))
-
-(rule (
-  (targets (build_short_parser.sh.sexp))
+(alias (
+  (name cram)
   (deps (
     build_short_parser.sh
     short_parser.mly
@@ -13,6 +11,8 @@
     lexer.mll
     prog.ml
     prog.mli))
-  (fallback)
-  (action (setenv TERM dumb (with-stdout-to ${@} (run rwo-build eval ${<}))))))
+  (action (
+    progn
+    (run ${ROOT}/cram/cram.exe build_short_parser.sh)
+    (diff? build_short_parser.sh build_short_parser.sh.corrected)))))
 

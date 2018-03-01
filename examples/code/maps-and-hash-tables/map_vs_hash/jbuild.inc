@@ -1,10 +1,10 @@
 (jbuild_version 1)
 
-(alias ((name sexp) (deps (run_map_vs_hash.sh.sexp))))
-
-(rule (
-  (targets (run_map_vs_hash.sh.sexp))
+(alias (
+  (name cram)
   (deps (run_map_vs_hash.sh map_vs_hash.ml jbuild jbuild.inc))
-  (fallback)
-  (action (setenv TERM dumb (with-stdout-to ${@} (run rwo-build eval ${<}))))))
+  (action (
+    progn
+    (run ${ROOT}/cram/cram.exe run_map_vs_hash.sh)
+    (diff? run_map_vs_hash.sh run_map_vs_hash.sh.corrected)))))
 

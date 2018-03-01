@@ -5,7 +5,8 @@
   (deps (qsort.topscript))
   (action (
     progn
-    (setenv OCAMLRUNPARAM "" (run ocaml-topexpect -short-paths -verbose ${<}))
+    (setenv OCAMLRUNPARAM "" (
+      run ocaml-topexpect -short-paths -verbose qsort.topscript))
     (diff? qsort.topscript qsort.topscript.corrected)))))
 
 (alias (
@@ -13,6 +14,7 @@
   (deps (posix.topscript))
   (action (
     progn
-    (setenv OCAMLRUNPARAM "" (run ocaml-topexpect -short-paths -verbose ${<}))
+    (setenv OCAMLRUNPARAM "" (
+      run ocaml-topexpect -short-paths -verbose posix.topscript))
     (diff? posix.topscript posix.topscript.corrected)))))
 

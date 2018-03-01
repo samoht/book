@@ -1,10 +1,12 @@
 (jbuild_version 1)
 
-(alias ((name sexp) (deps (build_test_interval_nosexp.errsh.sexp))))
-
-(rule (
-  (targets (build_test_interval_nosexp.errsh.sexp))
-  (deps    (build_test_interval_nosexp.errsh))
-  (fallback)
-  (action (setenv TERM dumb (with-stdout-to ${@} (run rwo-build eval ${<}))))))
+(alias (
+  (name cram)
+  (deps (build_test_interval_nosexp.errsh))
+  (action (
+    progn
+    (run ${ROOT}/cram/cram.exe build_test_interval_nosexp.errsh)
+    (diff?
+     build_test_interval_nosexp.errsh
+     build_test_interval_nosexp.errsh.corrected)))))
 

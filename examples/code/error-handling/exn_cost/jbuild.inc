@@ -1,18 +1,18 @@
 (jbuild_version 1)
 
-(alias ((name sexp) (deps (run_exn_cost.sh.sexp))))
+(alias (
+  (name cram)
+  (deps (run_exn_cost.sh))
+  (action (
+    progn
+    (run ${ROOT}/cram/cram.exe run_exn_cost.sh)
+    (diff? run_exn_cost.sh run_exn_cost.sh.corrected)))))
 
-(rule (
-  (targets (run_exn_cost.sh.sexp))
-  (deps    (run_exn_cost.sh))
-  (fallback)
-  (action (setenv TERM dumb (with-stdout-to ${@} (run rwo-build eval ${<}))))))
-
-(alias ((name sexp) (deps (run_exn_cost_notrace.sh.sexp))))
-
-(rule (
-  (targets (run_exn_cost_notrace.sh.sexp))
-  (deps    (run_exn_cost_notrace.sh))
-  (fallback)
-  (action (setenv TERM dumb (with-stdout-to ${@} (run rwo-build eval ${<}))))))
+(alias (
+  (name cram)
+  (deps (run_exn_cost_notrace.sh))
+  (action (
+    progn
+    (run ${ROOT}/cram/cram.exe run_exn_cost_notrace.sh)
+    (diff? run_exn_cost_notrace.sh run_exn_cost_notrace.sh.corrected)))))
 

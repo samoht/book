@@ -5,7 +5,8 @@
   (deps (install.topscript))
   (action (
     progn
-    (setenv OCAMLRUNPARAM "" (run ocaml-topexpect -short-paths -verbose ${<}))
+    (setenv OCAMLRUNPARAM "" (
+      run ocaml-topexpect -short-paths -verbose install.topscript))
     (diff? install.topscript install.topscript.corrected)))))
 
 (alias (
@@ -13,7 +14,8 @@
   (deps (parse_book.topscript book.json))
   (action (
     progn
-    (setenv OCAMLRUNPARAM "" (run ocaml-topexpect -short-paths -verbose ${<}))
+    (setenv OCAMLRUNPARAM "" (
+      run ocaml-topexpect -short-paths -verbose parse_book.topscript))
     (diff? parse_book.topscript parse_book.topscript.corrected)))))
 
 (alias (
@@ -21,14 +23,15 @@
   (deps (build_json.topscript))
   (action (
     progn
-    (setenv OCAMLRUNPARAM "" (run ocaml-topexpect -short-paths -verbose ${<}))
+    (setenv OCAMLRUNPARAM "" (
+      run ocaml-topexpect -short-paths -verbose build_json.topscript))
     (diff? build_json.topscript build_json.topscript.corrected)))))
 
-(alias ((name sexp) (deps (build_github_atd.sh.sexp))))
-
-(rule (
-  (targets (build_github_atd.sh.sexp))
-  (deps    (build_github_atd.sh))
-  (fallback)
-  (action (setenv TERM dumb (with-stdout-to ${@} (run rwo-build eval ${<}))))))
+(alias (
+  (name cram)
+  (deps (build_github_atd.sh))
+  (action (
+    progn
+    (run ${ROOT}/cram/cram.exe build_github_atd.sh)
+    (diff? build_github_atd.sh build_github_atd.sh.corrected)))))
 

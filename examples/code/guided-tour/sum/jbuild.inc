@@ -1,10 +1,10 @@
 (jbuild_version 1)
 
-(alias ((name sexp) (deps (build_sum.sh.sexp))))
-
-(rule (
-  (targets (build_sum.sh.sexp))
+(alias (
+  (name cram)
   (deps (build_sum.sh jbuild jbuild.inc sum.ml))
-  (fallback)
-  (action (setenv TERM dumb (with-stdout-to ${@} (run rwo-build eval ${<}))))))
+  (action (
+    progn
+    (run   ${ROOT}/cram/cram.exe build_sum.sh)
+    (diff? build_sum.sh          build_sum.sh.corrected)))))
 

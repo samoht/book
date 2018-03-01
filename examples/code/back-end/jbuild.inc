@@ -1,42 +1,50 @@
 (jbuild_version 1)
 
-(alias ((name sexp) (deps (instr_for_pattern_monomorphic_small.sh.sexp))))
+(alias (
+  (name cram)
+  (deps (instr_for_pattern_monomorphic_small.sh))
+  (action (
+    progn
+    (run ${ROOT}/cram/cram.exe instr_for_pattern_monomorphic_small.sh)
+    (diff?
+     instr_for_pattern_monomorphic_small.sh
+     instr_for_pattern_monomorphic_small.sh.corrected)))))
 
-(rule (
-  (targets (instr_for_pattern_monomorphic_small.sh.sexp))
-  (deps    (instr_for_pattern_monomorphic_small.sh))
-  (fallback)
-  (action (setenv TERM dumb (with-stdout-to ${@} (run rwo-build eval ${<}))))))
+(alias (
+  (name cram)
+  (deps (asm_from_compare_mono.sh))
+  (action (
+    progn
+    (run ${ROOT}/cram/cram.exe asm_from_compare_mono.sh)
+    (diff? asm_from_compare_mono.sh asm_from_compare_mono.sh.corrected)))))
 
-(alias ((name sexp) (deps (asm_from_compare_mono.sh.sexp))))
-
-(rule (
-  (targets (asm_from_compare_mono.sh.sexp))
-  (deps    (asm_from_compare_mono.sh))
-  (fallback)
-  (action (setenv TERM dumb (with-stdout-to ${@} (run rwo-build eval ${<}))))))
-
-(alias ((name sexp) (deps (lambda_for_pattern_monomorphic_large.sh.sexp))))
-
-(rule (
-  (targets (lambda_for_pattern_monomorphic_large.sh.sexp))
+(alias (
+  (name cram)
   (deps (lambda_for_pattern_monomorphic_large.sh))
-  (fallback)
-  (action (setenv TERM dumb (with-stdout-to ${@} (run rwo-build eval ${<}))))))
+  (action (
+    progn
+    (run ${ROOT}/cram/cram.exe lambda_for_pattern_monomorphic_large.sh)
+    (diff?
+     lambda_for_pattern_monomorphic_large.sh
+     lambda_for_pattern_monomorphic_large.sh.corrected)))))
 
-(alias ((name sexp) (deps (lambda_for_pattern_monomorphic_small.sh.sexp))))
-
-(rule (
-  (targets (lambda_for_pattern_monomorphic_small.sh.sexp))
+(alias (
+  (name cram)
   (deps (lambda_for_pattern_monomorphic_small.sh))
-  (fallback)
-  (action (setenv TERM dumb (with-stdout-to ${@} (run rwo-build eval ${<}))))))
+  (action (
+    progn
+    (run ${ROOT}/cram/cram.exe lambda_for_pattern_monomorphic_small.sh)
+    (diff?
+     lambda_for_pattern_monomorphic_small.sh
+     lambda_for_pattern_monomorphic_small.sh.corrected)))))
 
-(alias ((name sexp) (deps (lambda_for_pattern_polymorphic.sh.sexp))))
-
-(rule (
-  (targets (lambda_for_pattern_polymorphic.sh.sexp))
-  (deps    (lambda_for_pattern_polymorphic.sh))
-  (fallback)
-  (action (setenv TERM dumb (with-stdout-to ${@} (run rwo-build eval ${<}))))))
+(alias (
+  (name cram)
+  (deps (lambda_for_pattern_polymorphic.sh))
+  (action (
+    progn
+    (run ${ROOT}/cram/cram.exe lambda_for_pattern_polymorphic.sh)
+    (diff?
+     lambda_for_pattern_polymorphic.sh
+     lambda_for_pattern_polymorphic.sh.corrected)))))
 

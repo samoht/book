@@ -1,10 +1,10 @@
 (jbuild_version 1)
 
-(alias ((name sexp) (deps (run_search.sh.sexp))))
-
-(rule (
-  (targets (run_search.sh.sexp))
+(alias (
+  (name cram)
   (deps (run_search.sh search.ml jbuild jbuild.inc))
-  (fallback)
-  (action (setenv TERM dumb (with-stdout-to ${@} (run rwo-build eval ${<}))))))
+  (action (
+    progn
+    (run   ${ROOT}/cram/cram.exe run_search.sh)
+    (diff? run_search.sh         run_search.sh.corrected)))))
 

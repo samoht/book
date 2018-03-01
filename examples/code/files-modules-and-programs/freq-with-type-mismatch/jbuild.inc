@@ -1,10 +1,10 @@
 (jbuild_version 1)
 
-(alias ((name sexp) (deps (build.errsh.sexp))))
-
-(rule (
-  (targets (build.errsh.sexp))
+(alias (
+  (name cram)
   (deps (build.errsh counter.ml counter.mli freq.ml jbuild jbuild.inc))
-  (fallback)
-  (action (setenv TERM dumb (with-stdout-to ${@} (run rwo-build eval ${<}))))))
+  (action (
+    progn
+    (run   ${ROOT}/cram/cram.exe build.errsh)
+    (diff? build.errsh           build.errsh.corrected)))))
 

@@ -5,7 +5,8 @@
   (deps (query_handler.topscript))
   (action (
     progn
-    (setenv OCAMLRUNPARAM "" (run ocaml-topexpect -short-paths -verbose ${<}))
+    (setenv OCAMLRUNPARAM "" (
+      run ocaml-topexpect -short-paths -verbose query_handler.topscript))
     (diff? query_handler.topscript query_handler.topscript.corrected)))))
 
 (alias (
@@ -13,6 +14,7 @@
   (deps (main.topscript))
   (action (
     progn
-    (setenv OCAMLRUNPARAM "" (run ocaml-topexpect -short-paths -verbose ${<}))
+    (setenv OCAMLRUNPARAM "" (
+      run ocaml-topexpect -short-paths -verbose main.topscript))
     (diff? main.topscript main.topscript.corrected)))))
 

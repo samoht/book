@@ -5,7 +5,8 @@
   (deps (poly.topscript))
   (action (
     progn
-    (setenv OCAMLRUNPARAM "" (run ocaml-topexpect -short-paths -verbose ${<}))
+    (setenv OCAMLRUNPARAM "" (
+      run ocaml-topexpect -short-paths -verbose poly.topscript))
     (diff? poly.topscript poly.topscript.corrected)))))
 
 (alias (
@@ -13,6 +14,7 @@
   (deps (main.topscript))
   (action (
     progn
-    (setenv OCAMLRUNPARAM "" (run ocaml-topexpect -short-paths -verbose ${<}))
+    (setenv OCAMLRUNPARAM "" (
+      run ocaml-topexpect -short-paths -verbose main.topscript))
     (diff? main.topscript main.topscript.corrected)))))
 

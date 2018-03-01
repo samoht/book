@@ -1,146 +1,163 @@
 (jbuild_version 1)
 
-(alias ((name sexp) (deps (infer_typedef.sh.sexp))))
+(alias (
+  (name cram)
+  (deps (infer_typedef.sh))
+  (action (
+    progn
+    (run ${ROOT}/cram/cram.exe infer_typedef.sh)
+    (diff? infer_typedef.sh infer_typedef.sh.corrected)))))
 
-(rule (
-  (targets (infer_typedef.sh.sexp))
-  (deps    (infer_typedef.sh))
-  (fallback)
-  (action (setenv TERM dumb (with-stdout-to ${@} (run rwo-build eval ${<}))))))
+(alias (
+  (name cram)
+  (deps (build_principal_corebuild.sh))
+  (action (
+    progn
+    (run ${ROOT}/cram/cram.exe build_principal_corebuild.sh)
+    (diff?
+     build_principal_corebuild.sh
+     build_principal_corebuild.sh.corrected)))))
 
-(alias ((name sexp) (deps (build_principal_corebuild.sh.sexp))))
+(alias (
+  (name cram)
+  (deps (build_broken_poly_with_annot.errsh))
+  (action (
+    progn
+    (run ${ROOT}/cram/cram.exe build_broken_poly_with_annot.errsh)
+    (diff?
+     build_broken_poly_with_annot.errsh
+     build_broken_poly_with_annot.errsh.corrected)))))
 
-(rule (
-  (targets (build_principal_corebuild.sh.sexp))
-  (deps    (build_principal_corebuild.sh))
-  (fallback)
-  (action (setenv TERM dumb (with-stdout-to ${@} (run rwo-build eval ${<}))))))
+(alias (
+  (name cram)
+  (deps (indent_follow_on_function.sh))
+  (action (
+    progn
+    (run ${ROOT}/cram/cram.exe indent_follow_on_function.sh)
+    (diff?
+     indent_follow_on_function.sh
+     indent_follow_on_function.sh.corrected)))))
 
-(alias ((name sexp) (deps (build_broken_poly_with_annot.errsh.sexp))))
+(alias (
+  (name cram)
+  (deps (typedtree_typedef.sh))
+  (action (
+    progn
+    (run ${ROOT}/cram/cram.exe typedtree_typedef.sh)
+    (diff? typedtree_typedef.sh typedtree_typedef.sh.corrected)))))
 
-(rule (
-  (targets (build_broken_poly_with_annot.errsh.sexp))
-  (deps    (build_broken_poly_with_annot.errsh))
-  (fallback)
-  (action (setenv TERM dumb (with-stdout-to ${@} (run rwo-build eval ${<}))))))
+(alias (
+  (name cram)
+  (deps (process_comparelib_interface.sh))
+  (action (
+    progn
+    (run ${ROOT}/cram/cram.exe process_comparelib_interface.sh)
+    (diff?
+     process_comparelib_interface.sh
+     process_comparelib_interface.sh.corrected)))))
 
-(alias ((name sexp) (deps (indent_follow_on_function.sh.sexp))))
+(alias (
+  (name cram)
+  (deps (build_type_conv_without_camlp4.errsh))
+  (action (
+    progn
+    (run ${ROOT}/cram/cram.exe build_type_conv_without_camlp4.errsh)
+    (diff?
+     build_type_conv_without_camlp4.errsh
+     build_type_conv_without_camlp4.errsh.corrected)))))
 
-(rule (
-  (targets (indent_follow_on_function.sh.sexp))
-  (deps    (indent_follow_on_function.sh))
-  (fallback)
-  (action (setenv TERM dumb (with-stdout-to ${@} (run rwo-build eval ${<}))))))
+(alias (
+  (name cram)
+  (deps (build_principal.sh))
+  (action (
+    progn
+    (run ${ROOT}/cram/cram.exe build_principal.sh)
+    (diff? build_principal.sh build_principal.sh.corrected)))))
 
-(alias ((name sexp) (deps (typedtree_typedef.sh.sexp))))
+(alias (
+  (name cram)
+  (deps (conflicting_interfaces.errsh))
+  (action (
+    progn
+    (run ${ROOT}/cram/cram.exe conflicting_interfaces.errsh)
+    (diff?
+     conflicting_interfaces.errsh
+     conflicting_interfaces.errsh.corrected)))))
 
-(rule (
-  (targets (typedtree_typedef.sh.sexp))
-  (deps    (typedtree_typedef.sh))
-  (fallback)
-  (action (setenv TERM dumb (with-stdout-to ${@} (run rwo-build eval ${<}))))))
+(alias (
+  (name cram)
+  (deps (build_broken_module.errsh))
+  (action (
+    progn
+    (run ${ROOT}/cram/cram.exe build_broken_module.errsh)
+    (diff? build_broken_module.errsh build_broken_module.errsh.corrected)))))
 
-(alias ((name sexp) (deps (process_comparelib_interface.sh.sexp))))
-
-(rule (
-  (targets (process_comparelib_interface.sh.sexp))
-  (deps    (process_comparelib_interface.sh))
-  (fallback)
-  (action (setenv TERM dumb (with-stdout-to ${@} (run rwo-build eval ${<}))))))
-
-(alias ((name sexp) (deps (build_type_conv_without_camlp4.errsh.sexp))))
-
-(rule (
-  (targets (build_type_conv_without_camlp4.errsh.sexp))
-  (deps    (build_type_conv_without_camlp4.errsh))
-  (fallback)
-  (action (setenv TERM dumb (with-stdout-to ${@} (run rwo-build eval ${<}))))))
-
-(alias ((name sexp) (deps (build_principal.sh.sexp))))
-
-(rule (
-  (targets (build_principal.sh.sexp))
-  (deps    (build_principal.sh))
-  (fallback)
-  (action (setenv TERM dumb (with-stdout-to ${@} (run rwo-build eval ${<}))))))
-
-(alias ((name sexp) (deps (conflicting_interfaces.errsh.sexp))))
-
-(rule (
-  (targets (conflicting_interfaces.errsh.sexp))
-  (deps    (conflicting_interfaces.errsh))
-  (fallback)
-  (action (setenv TERM dumb (with-stdout-to ${@} (run rwo-build eval ${<}))))))
-
-(alias ((name sexp) (deps (build_broken_module.errsh.sexp))))
-
-(rule (
-  (targets (build_broken_module.errsh.sexp))
-  (deps    (build_broken_module.errsh))
-  (fallback)
-  (action (setenv TERM dumb (with-stdout-to ${@} (run rwo-build eval ${<}))))))
-
-(alias ((name sexp) (deps (indent_follow_on_function_fixed.sh.sexp))))
-
-(rule (
-  (targets (indent_follow_on_function_fixed.sh.sexp))
+(alias (
+  (name cram)
   (deps (indent_follow_on_function_fixed.sh follow_on_function_fixed.ml))
-  (fallback)
-  (action (setenv TERM dumb (with-stdout-to ${@} (run rwo-build eval ${<}))))))
+  (action (
+    progn
+    (run ${ROOT}/cram/cram.exe indent_follow_on_function_fixed.sh)
+    (diff?
+     indent_follow_on_function_fixed.sh
+     indent_follow_on_function_fixed.sh.corrected)))))
 
-(alias ((name sexp) (deps (parsetree_typedef.sh.sexp))))
+(alias (
+  (name cram)
+  (deps (parsetree_typedef.sh))
+  (action (
+    progn
+    (run ${ROOT}/cram/cram.exe parsetree_typedef.sh)
+    (diff? parsetree_typedef.sh parsetree_typedef.sh.corrected)))))
 
-(rule (
-  (targets (parsetree_typedef.sh.sexp))
-  (deps    (parsetree_typedef.sh))
-  (fallback)
-  (action (setenv TERM dumb (with-stdout-to ${@} (run rwo-build eval ${<}))))))
+(alias (
+  (name cram)
+  (deps (typedef_objinfo.sh))
+  (action (
+    progn
+    (run ${ROOT}/cram/cram.exe typedef_objinfo.sh)
+    (diff? typedef_objinfo.sh typedef_objinfo.sh.corrected)))))
 
-(alias ((name sexp) (deps (typedef_objinfo.sh.sexp))))
-
-(rule (
-  (targets (typedef_objinfo.sh.sexp))
-  (deps    (typedef_objinfo.sh))
-  (fallback)
-  (action (setenv TERM dumb (with-stdout-to ${@} (run rwo-build eval ${<}))))))
-
-(alias ((name sexp) (deps (build_non_principal.sh.sexp))))
-
-(rule (
-  (targets (build_non_principal.sh.sexp))
-  (deps    (build_non_principal.sh))
-  (fallback)
-  (action (setenv TERM dumb (with-stdout-to ${@} (run rwo-build eval ${<}))))))
+(alias (
+  (name cram)
+  (deps (build_non_principal.sh))
+  (action (
+    progn
+    (run ${ROOT}/cram/cram.exe build_non_principal.sh)
+    (diff? build_non_principal.sh build_non_principal.sh.corrected)))))
 
 (alias (
   (name code)
   (deps (camlp4_toplevel.topscript))
   (action (
     progn
-    (setenv OCAMLRUNPARAM "" (run ocaml-topexpect -short-paths -verbose ${<}))
+    (setenv OCAMLRUNPARAM "" (
+      run ocaml-topexpect -short-paths -verbose camlp4_toplevel.topscript))
     (diff? camlp4_toplevel.topscript camlp4_toplevel.topscript.corrected)))))
 
-(alias ((name sexp) (deps (build_follow_on_function.errsh.sexp))))
+(alias (
+  (name cram)
+  (deps (build_follow_on_function.errsh))
+  (action (
+    progn
+    (run ${ROOT}/cram/cram.exe build_follow_on_function.errsh)
+    (diff?
+     build_follow_on_function.errsh
+     build_follow_on_function.errsh.corrected)))))
 
-(rule (
-  (targets (build_follow_on_function.errsh.sexp))
-  (deps    (build_follow_on_function.errsh))
-  (fallback)
-  (action (setenv TERM dumb (with-stdout-to ${@} (run rwo-build eval ${<}))))))
+(alias (
+  (name cram)
+  (deps (build_broken_poly.errsh))
+  (action (
+    progn
+    (run ${ROOT}/cram/cram.exe build_broken_poly.errsh)
+    (diff? build_broken_poly.errsh build_broken_poly.errsh.corrected)))))
 
-(alias ((name sexp) (deps (build_broken_poly.errsh.sexp))))
-
-(rule (
-  (targets (build_broken_poly.errsh.sexp))
-  (deps    (build_broken_poly.errsh))
-  (fallback)
-  (action (setenv TERM dumb (with-stdout-to ${@} (run rwo-build eval ${<}))))))
-
-(alias ((name sexp) (deps (process_comparelib_test.sh.sexp))))
-
-(rule (
-  (targets (process_comparelib_test.sh.sexp))
-  (deps    (process_comparelib_test.sh))
-  (fallback)
-  (action (setenv TERM dumb (with-stdout-to ${@} (run rwo-build eval ${<}))))))
+(alias (
+  (name cram)
+  (deps (process_comparelib_test.sh))
+  (action (
+    progn
+    (run ${ROOT}/cram/cram.exe process_comparelib_test.sh)
+    (diff? process_comparelib_test.sh process_comparelib_test.sh.corrected)))))
 

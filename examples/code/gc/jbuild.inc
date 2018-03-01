@@ -5,6 +5,7 @@
   (deps (tune.topscript))
   (action (
     progn
-    (setenv OCAMLRUNPARAM "" (run ocaml-topexpect -short-paths -verbose ${<}))
+    (setenv OCAMLRUNPARAM "" (
+      run ocaml-topexpect -short-paths -verbose tune.topscript))
     (diff? tune.topscript tune.topscript.corrected)))))
 

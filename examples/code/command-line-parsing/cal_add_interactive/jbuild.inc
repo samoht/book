@@ -1,14 +1,16 @@
 (jbuild_version 1)
 
-(alias ((name sexp) (deps (build_and_run_cal_add_interactive.sh.sexp))))
-
-(rule (
-  (targets (build_and_run_cal_add_interactive.sh.sexp))
+(alias (
+  (name cram)
   (deps (
     build_and_run_cal_add_interactive.sh
     cal_add_interactive.ml
     jbuild
     jbuild.inc))
-  (fallback)
-  (action (setenv TERM dumb (with-stdout-to ${@} (run rwo-build eval ${<}))))))
+  (action (
+    progn
+    (run ${ROOT}/cram/cram.exe build_and_run_cal_add_interactive.sh)
+    (diff?
+     build_and_run_cal_add_interactive.sh
+     build_and_run_cal_add_interactive.sh.corrected)))))
 

@@ -1,18 +1,18 @@
 (jbuild_version 1)
 
-(alias ((name sexp) (deps (show_barrier_bench_help.sh.sexp))))
+(alias (
+  (name cram)
+  (deps (show_barrier_bench_help.sh))
+  (action (
+    progn
+    (run ${ROOT}/cram/cram.exe show_barrier_bench_help.sh)
+    (diff? show_barrier_bench_help.sh show_barrier_bench_help.sh.corrected)))))
 
-(rule (
-  (targets (show_barrier_bench_help.sh.sexp))
-  (deps    (show_barrier_bench_help.sh))
-  (fallback)
-  (action (setenv TERM dumb (with-stdout-to ${@} (run rwo-build eval ${<}))))))
-
-(alias ((name sexp) (deps (run_barrier_bench.sh.sexp))))
-
-(rule (
-  (targets (run_barrier_bench.sh.sexp))
-  (deps    (run_barrier_bench.sh))
-  (fallback)
-  (action (setenv TERM dumb (with-stdout-to ${@} (run rwo-build eval ${<}))))))
+(alias (
+  (name cram)
+  (deps (run_barrier_bench.sh))
+  (action (
+    progn
+    (run ${ROOT}/cram/cram.exe run_barrier_bench.sh)
+    (diff? run_barrier_bench.sh run_barrier_bench.sh.corrected)))))
 

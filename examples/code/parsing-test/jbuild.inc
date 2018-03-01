@@ -1,18 +1,18 @@
 (jbuild_version 1)
 
-(alias ((name sexp) (deps (run_broken_test.errsh.sexp))))
+(alias (
+  (name cram)
+  (deps (run_broken_test.errsh))
+  (action (
+    progn
+    (run ${ROOT}/cram/cram.exe run_broken_test.errsh)
+    (diff? run_broken_test.errsh run_broken_test.errsh.corrected)))))
 
-(rule (
-  (targets (run_broken_test.errsh.sexp))
-  (deps    (run_broken_test.errsh))
-  (fallback)
-  (action (setenv TERM dumb (with-stdout-to ${@} (run rwo-build eval ${<}))))))
-
-(alias ((name sexp) (deps (build_test.sh.sexp))))
-
-(rule (
-  (targets (build_test.sh.sexp))
-  (deps    (build_test.sh))
-  (fallback)
-  (action (setenv TERM dumb (with-stdout-to ${@} (run rwo-build eval ${<}))))))
+(alias (
+  (name cram)
+  (deps (build_test.sh))
+  (action (
+    progn
+    (run   ${ROOT}/cram/cram.exe build_test.sh)
+    (diff? build_test.sh         build_test.sh.corrected)))))
 

@@ -1,18 +1,18 @@
 (jbuild_version 1)
 
-(alias ((name sexp) (deps (build.sh.sexp))))
-
-(rule (
-  (targets (build.sh.sexp))
+(alias (
+  (name cram)
   (deps (build.sh freq.ml counter.ml jbuild jbuild.inc))
-  (fallback)
-  (action (setenv TERM dumb (with-stdout-to ${@} (run rwo-build eval ${<}))))))
+  (action (
+    progn
+    (run   ${ROOT}/cram/cram.exe build.sh)
+    (diff? build.sh              build.sh.corrected)))))
 
-(alias ((name sexp) (deps (infer_mli.sh.sexp))))
-
-(rule (
-  (targets (infer_mli.sh.sexp))
-  (deps    (infer_mli.sh))
-  (fallback)
-  (action (setenv TERM dumb (with-stdout-to ${@} (run rwo-build eval ${<}))))))
+(alias (
+  (name cram)
+  (deps (infer_mli.sh))
+  (action (
+    progn
+    (run   ${ROOT}/cram/cram.exe infer_mli.sh)
+    (diff? infer_mli.sh          infer_mli.sh.corrected)))))
 

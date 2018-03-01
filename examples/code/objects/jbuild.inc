@@ -5,7 +5,8 @@
   (deps (polymorphism.topscript))
   (action (
     progn
-    (setenv OCAMLRUNPARAM "" (run ocaml-topexpect -short-paths -verbose ${<}))
+    (setenv OCAMLRUNPARAM "" (
+      run ocaml-topexpect -short-paths -verbose polymorphism.topscript))
     (diff? polymorphism.topscript polymorphism.topscript.corrected)))))
 
 (alias (
@@ -13,7 +14,8 @@
   (deps (stack.topscript))
   (action (
     progn
-    (setenv OCAMLRUNPARAM "" (run ocaml-topexpect -short-paths -verbose ${<}))
+    (setenv OCAMLRUNPARAM "" (
+      run ocaml-topexpect -short-paths -verbose stack.topscript))
     (diff? stack.topscript stack.topscript.corrected)))))
 
 (alias (
@@ -21,7 +23,8 @@
   (deps (subtyping.topscript))
   (action (
     progn
-    (setenv OCAMLRUNPARAM "" (run ocaml-topexpect -short-paths -verbose ${<}))
+    (setenv OCAMLRUNPARAM "" (
+      run ocaml-topexpect -short-paths -verbose subtyping.topscript))
     (diff? subtyping.topscript subtyping.topscript.corrected)))))
 
 (alias (
@@ -29,7 +32,8 @@
   (deps (immutable.topscript))
   (action (
     progn
-    (setenv OCAMLRUNPARAM "" (run ocaml-topexpect -short-paths -verbose ${<}))
+    (setenv OCAMLRUNPARAM "" (
+      run ocaml-topexpect -short-paths -verbose immutable.topscript))
     (diff? immutable.topscript immutable.topscript.corrected)))))
 
 (alias (
@@ -37,6 +41,7 @@
   (deps (row_polymorphism.topscript))
   (action (
     progn
-    (setenv OCAMLRUNPARAM "" (run ocaml-topexpect -short-paths -verbose ${<}))
+    (setenv OCAMLRUNPARAM "" (
+      run ocaml-topexpect -short-paths -verbose row_polymorphism.topscript))
     (diff? row_polymorphism.topscript row_polymorphism.topscript.corrected)))))
 
