@@ -21,12 +21,22 @@ types]{.idx #EHeraware}
 The best way in OCaml to signal an error is to include that error in your
 return value. Consider the type of the `find` function in the `List` module:
 
-<link rel="import" href="code/error-handling/main.mlt" part="0.5" />
+```ocaml
+open Base;;
+
+List.find;;
+:: - : 'a list -> f:('a -> bool) -> 'a option = <fun>
+```
 
 The option in the return type indicates that the function may not succeed in
 finding a suitable element:
 
-<link rel="import" href="code/error-handling/main.mlt" part="1" />
+```ocaml
+List.find [1;2;3] ~f:(fun x -> x >= 2) ;;
+:: - : int option = Some 2
+List.find [1;2;3] ~f:(fun x -> x >= 10) ;;
+:: - : int option = None
+```
 
 Including errors in the return values of your functions requires the caller
 to handle the error explicitly, allowing the caller to make the choice of
@@ -38,7 +48,16 @@ finding the smallest and largest element on the list. `List.hd` and
 `List.last`, which return `None` when they encounter an empty list, are used
 to extract the largest and smallest element of the list:
 
-<link rel="import" href="code/error-handling/main.mlt" part="2" />
+```ocaml
+let compute_bounds ~compare list =
+  let sorted = List.sort ~compare list in
+  match List.hd sorted, List.last sorted with
+  | None,_ | _, None -> None
+  | Some x, Some y -> Some (x,y)
+;;
+:: val compute_bounds : compare:('a -> 'a -> int) -> 'a list -> ('a * 'a) option =
+::   <fun>
+```
 
 The `match` statement is used to handle the error cases, propagating a 
 `None` in `hd` or `last` into the return value of `compute_bounds`.
@@ -49,7 +68,17 @@ during the computation do not propagate to the return value of the function.
 that have different data in one table than in the other. As such, the failure
 to find a key in one table isn't a failure of any sort:
 
-<link rel="import" href="code/error-handling/main.mlt" part="3" />
+```ocaml
+let find_mismatches table1 table2 =
+  Hashtbl.fold table1 ~init:[] ~f:(fun ~key ~data mismatches ->
+    match Hashtbl.find table2 key with
+    | Some data' when data' <> data -> key :: mismatches
+    | _ -> mismatches
+  )
+;;
+:: val find_mismatches : ('a, int) Hashtbl.t -> ('a, int) Hashtbl.t -> 'a list =
+::   <fun>
+```
 
 The use of options to encode errors underlines the fact that it's not clear
 whether a particular outcome, like not finding something on a list, is an
@@ -67,14 +96,22 @@ anything about the nature of the error.
 `Result.t` is meant to address this deficiency. The type is defined as
 follows:[Result.t option]{.idx}
 
-<link rel="import" href="code/error-handling/result.mli" />
+```ocaml
+module Result : sig
+   type ('a,'b) t = | Ok of 'a
+                    | Error of 'b
+end
+```
 
 A `Result.t` is essentially an option augmented with the ability to store
 other information in the error case. Like `Some` and `None` for options, the
 constructors `Ok` and `Error` are available at the toplevel. As such, we can
 write:
 
-<link rel="import" href="code/error-handling/main.mlt" part="4" />
+```ocaml
+[ Ok 3; Error "abject failure"; Ok 4 ];;
+:: - : (int, string) result list = [Ok 3; Error "abject failure"; Ok 4]
+```
 
 without first opening the `Result` module.
 
@@ -102,12 +139,19 @@ allows you to put off generation of the error string until and unless you
 need it, which means a lot of the time you never have to construct it at all.
 You can of course construct an error directly from a string:
 
-<link rel="import" href="code/error-handling/main.mlt" part="5" />
+```ocaml
+Error.of_string "something went wrong";;
+:: - : Error.t = something went wrong
+```
 
 But you can also construct an `Error.t` from a *thunk*, i.e., a function that
 takes a single argument of type `unit`:[thunks]{.idx}
 
-<link rel="import" href="code/error-handling/main.mlt" part="6" />
+```ocaml
+Error.of_thunk (fun () ->
+  Printf.sprintf "something went wrong: %f" 32.3343);;
+:: - : Error.t = something went wrong: 32.334300
+```
 
 In this case, we can benefit from the laziness of `Error`, since the thunk
 won't be called unless the `Error.t` is converted to a string.
@@ -117,14 +161,19 @@ s-expression is a balanced parenthetical expression where the leaves of the
 expressions are strings. Here's a simple example: [s-expressions/example
 of]{.idx}
 
-<link rel="import" href="code/error-handling/sexpr.scm" />
+```
+(This (is an) (s expression))
+```
 
 S-expressions are supported by the Sexplib package that is distributed with
 Base and is the most common serialization format used in Base. Indeed, most
 types in Base come with built-in s-expression converters. [Sexplib
 package/sexp converter]{.idx}
 
-<link rel="import" href="code/error-handling/main.mlt" part="7" />
+```ocaml
+Error.create "Unexpected character" 'z' Char.sexp_of_t;;
+:: - : Error.t = ("Unexpected character" z)
+```
 
 Note that the character isn't actually serialized into an s-expression until
 the error is printed out.
@@ -135,11 +184,21 @@ types. This will be discussed in more detail in
 but Sexplib comes with a language extension that can autogenerate sexp
 converters for newly generated types:
 
-<link rel="import" href="code/error-handling/main.mlt" part="8" />
+```ocaml
+let custom_to_sexp = [%sexp_of: float * string list * int];;
+:: val custom_to_sexp : float * string list * int -> Sexp.t = <fun>
+custom_to_sexp (3.5, ["a";"b";"c"], 6034);;
+:: - : Sexp.t = (3.5 (a b c) 6034)
+```
 
 We can use this same idiom for generating an error:
 
-<link rel="import" href="code/error-handling/main.mlt" part="9" />
+```ocaml
+Error.create "Something went terribly wrong"
+  (3.5, ["a";"b";"c"], 6034)
+  [%sexp_of: float * string list * int] ;;
+:: - : Error.t = ("Something went terribly wrong" (3.5 (a b c) 6034))
+```
 
 `Error` also supports operations for transforming errors. For example, it's
 often useful to augment an error with information about the context of the
@@ -147,7 +206,15 @@ error or to combine multiple errors together. `Error.tag` and `Error.of_list`
 fulfill these
 roles:[Error.of_list]{.idx}[Error.tag]{.idx}[errors/transformation of]{.idx}
 
-<link rel="import" href="code/error-handling/main.mlt" part="10" />
+```ocaml
+Error.tag
+  (Error.of_list [ Error.of_string "Your tires were slashed";
+                   Error.of_string "Your windshield was smashed" ])
+  "over the weekend"
+;;
+:: - : Error.t =
+:: ("over the weekend" "Your tires were slashed" "Your windshield was smashed")
+```
 
 The type `'a Or_error.t` is just a shorthand for `('a,Error.t) Result.t`, and
 it is, after `option`, the most common way of returning errors in Base.
@@ -161,7 +228,14 @@ useful pattern is built around the function `bind`, which is both an ordinary
 function and an infix operator `>>=`. Here's the definition of `bind` for
 options: [bind function]{.idx}
 
-<link rel="import" href="code/error-handling/main.mlt" part="11" />
+```ocaml
+let bind option f =
+  match option with
+  | None -> None
+  | Some x -> f x
+;;
+:: val bind : 'a option -> ('a -> 'b option) -> 'b option = <fun>
+```
 
 As you can see, `bind None f` returns `None` without calling `f`, and
 `bind (Some x) f` returns `f x`. `bind` can be used as a way of sequencing
@@ -169,7 +243,16 @@ together error-producing functions so that the first one to produce an error
 terminates the computation. Here's a rewrite of `compute_bounds` to use a
 nested series of `bind`s:
 
-<link rel="import" href="code/error-handling/main.mlt" part="12" />
+```ocaml
+let compute_bounds ~compare list =
+  let sorted = List.sort ~compare list in
+  Option.bind (List.hd sorted) (fun first ->
+    Option.bind (List.last sorted) (fun last ->
+      Some (first,last)))
+;;
+:: val compute_bounds : compare:('a -> 'a -> int) -> 'a list -> ('a * 'a) option =
+::   <fun>
+```
 
 The preceding code is a little bit hard to swallow, however, on a syntactic
 level. We can make it easier to read and drop some of the parentheses, by
@@ -179,7 +262,17 @@ opening `Option.Monad_infix`. The module is called `Monad_infix` because the
 again in
 [Concurrent Programming With Async](concurrent-programming.html#concurrent-programming-with-async){data-type=xref}.
 
-<link rel="import" href="code/error-handling/main.mlt" part="13" />
+```ocaml
+let compute_bounds ~compare list =
+  let open Option.Monad_infix in
+  let sorted = List.sort ~compare list in
+  List.hd sorted   >>= fun first ->
+  List.last sorted >>= fun last  ->
+  Some (first,last)
+;;
+:: val compute_bounds : compare:('a -> 'a -> int) -> 'a list -> ('a * 'a) option =
+::   <fun>
+```
 
 This use of `bind` isn't really materially better than the one we started
 with, and indeed, for small examples like this, direct matching of options is
@@ -194,7 +287,17 @@ We can make this look a little bit more ordinary by using a syntax extension
 that's designed specifically for monadic binds, called `Let_syntax`. Here's
 what the above example looks like using this extension.
 
-<link rel="import" href="code/error-handling/main.mlt" part="13.1" />
+```ocaml
+let compute_bounds ~compare list =
+  let open Option.Let_syntax in
+  let sorted = List.sort ~compare list in
+  let%bind first = List.hd sorted in
+  let%bind last  = List.last sorted in
+  Some (first,last)
+;;
+:: val compute_bounds : compare:('a -> 'a -> int) -> 'a list -> ('a * 'a) option =
+::   <fun>
+```
 
 To understand what's going on here, you need to know that
 `let%bind x = some_expr in some_other_expr` is rewritten into
@@ -212,7 +315,14 @@ example is `Option.both`, which takes two optional values and produces a new
 optional pair that is `None` if either of its arguments are `None`. Using
 `Option.both`, we can make `compute_bounds` even shorter:
 
-<link rel="import" href="code/error-handling/main.mlt" part="14" />
+```ocaml
+let compute_bounds ~compare list =
+  let sorted = List.sort ~compare list in
+  Option.both (List.hd sorted) (List.last sorted)
+;;
+:: val compute_bounds : compare:('a -> 'a -> int) -> 'a list -> ('a * 'a) option =
+::   <fun>
+```
 
 These error-handling functions are valuable because they let you express your
 error handling both explicitly and concisely. We've only discussed these
@@ -232,28 +342,52 @@ handling/exceptions]{.idx}
 
 You can trigger an exception by, for example, dividing an integer by zero:
 
-<link rel="import" href="code/error-handling/main.mlt" part="15" />
+```ocaml
+3 / 0;;
+1> Exception: Division_by_zero.
+```
 
 And an exception can terminate a computation even if it happens nested
 somewhere deep within it:
 
-<link rel="import" href="code/error-handling/main.mlt" part="16" />
+```ocaml
+List.map ~f:(fun x -> 100 / x) [1;3;0;4];;
+1> Exception: Division_by_zero.
+```
 
 If we put a `printf` in the middle of the computation, we can see that
 `List.map` is interrupted partway through its execution, never getting to the
 end of the list:
 
-<link rel="import" href="code/error-handling/main.mlt" part="17" />
+```ocaml
+List.map ~f:(fun x -> Stdio.printf "%d\n%!" x; 100 / x) [1;3;0;4];;
+1> Exception: Division_by_zero.
+1> 1
+1> 3
+1> 0
+```
 
 In addition to built-in exceptions like `Divide_by_zero`, OCaml lets you
 define your own:
 
-<link rel="import" href="code/error-handling/main.mlt" part="18" />
+```ocaml
+exception Key_not_found of string;;
+:: exception Key_not_found of string
+raise (Key_not_found "a");;
+1> Exception: Key_not_found("a").
+```
 
 Exceptions are ordinary values and can be manipulated just like other OCaml
 values:
 
-<link rel="import" href="code/error-handling/main.mlt" part="19" />
+```ocaml
+let exceptions = [ Division_by_zero; Key_not_found "b" ];;
+:: val exceptions : exn list = [Division_by_zero; Key_not_found("b")]
+List.filter exceptions  ~f:(function
+  | Key_not_found _ -> true
+  | _ -> false);;
+:: - : exn list = [Key_not_found("b")]
+```
 
 Exceptions are all of the same type, `exn`. The `exn` type is something of a
 special case in the OCaml type system. It is similar to the variant types we
@@ -268,7 +402,19 @@ full set of possible exceptions is not known.[exn type]{.idx}
 The following function uses the `Key_not_found` exception we defined above to
 signal an error:
 
-<link rel="import" href="code/error-handling/main.mlt" part="20" />
+```ocaml
+let rec find_exn alist key = match alist with
+  | [] -> raise (Key_not_found key)
+  | (key',data) :: tl -> if String.(=) key key' then data else find_exn tl key
+;;
+:: val find_exn : (string * 'a) list -> string -> 'a = <fun>
+let alist = [("a",1); ("b",2)];;
+:: val alist : (string * int) list = [("a", 1); ("b", 2)]
+find_exn alist "a";;
+:: - : int = 1
+find_exn alist "c";;
+1> Exception: Key_not_found("c").
+```
 
 Note that we named the function `find_exn` to warn the user that the function
 routinely throws exceptions, a convention that is used heavily in
@@ -277,7 +423,10 @@ Base.[functions/exception warnings for]{.idx}[find_exn function]{.idx}
 In the preceding example, `raise` throws the exception, thus terminating the
 computation. The type of raise is a bit surprising when you first see it:
 
-<link rel="import" href="code/error-handling/main.mlt" part="21" />
+```ocaml
+raise;;
+:: - : exn -> 'a = <fun>
+```
 
 The return type of `'a` makes it look like `raise` manufactures a value to
 return that is completely unconstrained in its type. That seems impossible,
@@ -286,7 +435,10 @@ at all. This behavior isn't restricted to functions like `raise` that
 terminate by throwing exceptions. Here's another example of a function that
 doesn't return a value:
 
-<link rel="import" href="code/error-handling/main.mlt" part="22" />
+```ocaml
+let rec forever () = forever ();;
+:: val forever : unit -> 'a = <fun>
+```
 
 `forever` doesn't return a value for a different reason: it's an infinite
 loop.
@@ -302,12 +454,28 @@ declaration]{.idx}[exceptions/textual representation of]{.idx}
 OCaml can't always generate a useful textual representation of an exception.
 For example:
 
-<link rel="import" href="code/error-handling/main.mlt" part="23" />
+```ocaml
+type 'a bounds = { lower: 'a; upper: 'a };;
+:: type 'a bounds = { lower : 'a; upper : 'a; }
+exception Crossed_bounds of int bounds;;
+:: exception Crossed_bounds of int bounds
+Crossed_bounds { lower=10; upper=0 };;
+:: - : exn = Crossed_bounds(_)
+```
 
 But if we declare the exception (and the types it depends on) using
 `[@@deriving sexp]`, we'll get something with more information:
 
-<link rel="import" href="code/error-handling/main.mlt" part="24" />
+```ocaml
+type 'a bounds = { lower: 'a; upper: 'a } [@@deriving sexp];;
+:: type 'a bounds = { lower : 'a; upper : 'a; }
+:: val bounds_of_sexp : (Sexp.t -> 'a) -> Sexp.t -> 'a bounds = <fun>
+:: val sexp_of_bounds : ('a -> Sexp.t) -> 'a bounds -> Sexp.t = <fun>
+exception Crossed_bounds of int bounds [@@deriving sexp];;
+:: exception Crossed_bounds of int bounds
+Crossed_bounds { lower=10; upper=0 };;
+:: - : exn = (//toplevel//.Crossed_bounds ((lower 10) (upper 0)))
+```
 
 The period in front of `Crossed_bounds` is there because the representation
 generated by `[@@deriving sexp]` includes the full module path of the module
@@ -328,7 +496,10 @@ exceptions. The simplest one is `failwith`, which could be defined as
 follows: [exceptions/helper functions for]{.idx}[error handling/exception
 helper functions]{.idx}
 
-<link rel="import" href="code/error-handling/main.mlt" part="25" />
+```ocaml
+let failwith msg = raise (Failure msg);;
+:: val failwith : string -> 'a = <fun>
+```
 
 There are several other useful functions for raising exceptions, which can be
 found in the API documentation for the `Common` and `Exn` modules in Base.
@@ -338,7 +509,25 @@ Another important way of throwing an exception is the `assert` directive.
 question indicates a bug. Consider the following piece of code for zipping
 together two lists:[assert directive]{.idx}
 
-<link rel="import" href="code/error-handling/main.mlt" part="26" />
+```ocaml
+let merge_lists xs ys ~f =
+  if List.length xs <> List.length ys then None
+  else
+    let rec loop xs ys =
+      match xs,ys with
+      | [],[] -> []
+      | x::xs, y::ys -> f x y :: loop xs ys
+      | _ -> assert false
+    in
+    Some (loop xs ys)
+;;
+:: val merge_lists : 'a list -> 'b list -> f:('a -> 'b -> 'c) -> 'c list option =
+::   <fun>
+merge_lists [1;2;3] [-1;1;2] ~f:(+);;
+:: - : int list option = Some [0; 3; 5]
+merge_lists [1;2;3] [-1;1] ~f:(+);;
+:: - : int list option = None
+```
 
 Here we use `assert false`, which means that the `assert` is guaranteed to
 trigger. In general, one can put an arbitrary condition in the assertion.
@@ -348,7 +537,20 @@ that makes sure that the lists are of the same length before we call
 `loop`. If we change the code so that we drop this test, then we can trigger
 the `assert`:
 
-<link rel="import" href="code/error-handling/main.mlt" part="27" />
+```ocaml
+let merge_lists xs ys ~f =
+  let rec loop xs ys =
+    match xs,ys with
+    | [],[] -> []
+    | x::xs, y::ys -> f x y :: loop xs ys
+    | _ -> assert false
+  in
+  loop xs ys
+;;
+:: val merge_lists : 'a list -> 'b list -> f:('a -> 'b -> 'c) -> 'c list = <fun>
+merge_lists [1;2;3] [-1] ~f:(+);;
+1> Exception: "Assert_failure //toplevel//:7:11".
+```
 
 This shows what's special about `assert`: it captures the line number and
 character offset of the source location from which the assertion was made.
@@ -364,7 +566,12 @@ handling/exception handlers]{.idx}
 In OCaml, an exception handler is declared using a `try`/`with` statement.
 Here's the basic syntax.
 
-<link rel="import" href="code/error-handling/try_with.syntax" />
+```
+try <expr> with
+| <pat1> -> <expr1>
+| <pat2> -> <expr2>
+...
+```
 
 A `try/with` clause first evaluates its body, *`expr`*. If no exception is
 thrown, then the result of evaluating the body is what the entire `try/with`
@@ -390,7 +597,22 @@ field is a floating point number. In this example we open `Stdio`, to get
 access to routines for reading from files. [exceptions/exception clean
 up]{.idx}[error handling/exception clean up]{.idx}
 
-<link rel="import" href="code/error-handling/main.mlt" part="28" />
+```ocaml
+open Stdio;;
+
+let parse_line line =
+  String.split_on_chars ~on:[','] line
+  |> List.map ~f:Float.of_string
+;;
+:: val parse_line : string -> float list = <fun>
+let load filename =
+  let inc = In_channel.create filename in
+  let data = In_channel.input_lines inc |> List.map ~f:parse_line in
+  In_channel.close inc;
+  data
+;;
+:: val load : string -> float list list = <fun>
+```
 
 One problem with this code is that the parsing function can throw an
 exception if the file in question is malformed. Unfortunately, that means
@@ -405,12 +627,26 @@ available in many programming languages, but it is implemented in a library,
 rather than being a built-in primitive. Here's how it could be used to fix
 our `load` function:
 
-<link rel="import" href="code/error-handling/main.mlt" part="29" />
+```ocaml
+let load filename =
+  let inc = In_channel.create filename in
+  Exn.protect
+    ~f:(fun () -> In_channel.input_lines inc |> List.map ~f:parse_line)
+    ~finally:(fun () -> In_channel.close inc)
+;;
+:: val load : string -> float list list = <fun>
+```
 
 This is a common enough problem that `In_channel` has a function called
 `with_file` that automates this pattern:
 
-<link rel="import" href="code/error-handling/main.mlt" part="30" />
+```ocaml
+let load filename =
+  In_channel.with_file filename ~f:(fun inc ->
+    In_channel.input_lines inc |> List.map ~f:parse_line)
+;;
+:: val load : string -> float list list = <fun>
+```
 
 `In_channel.with_file` is built on top of `protect` so that it can clean up
 after itself in the presence of exceptions.
@@ -425,7 +661,17 @@ advantage of this. In particular, consider the following function:
 [exceptions/catching specific]{.idx}[error handling/exception
 detection]{.idx}
 
-<link rel="import" href="code/error-handling/main.mlt" part="31" />
+```ocaml
+let lookup_weight ~compute_weight alist key =
+  try
+    let data = find_exn alist key in
+    compute_weight data
+  with
+    Key_not_found _ -> 0. ;;
+:: val lookup_weight :
+::   compute_weight:('a -> float) -> (string * 'a) list -> string -> float =
+::   <fun>
+```
 
 As you can see from the type, `lookup_weight` takes an association list, a
 key for looking up a corresponding value in that list, and a function for
@@ -437,7 +683,11 @@ particular, what happens if `compute_weight` throws an exception? Ideally,
 `lookup_weight` should propagate that exception on, but if the exception
 happens to be `Not_found`, then that's not what will happen:
 
-<link rel="import" href="code/error-handling/main.mlt" part="32" />
+```ocaml
+lookup_weight ~compute_weight:(fun _ -> raise (Key_not_found "foo"))
+  ["a",3; "b",4] "a" ;;
+:: - : float = 0.
+```
 
 This kind of problem is hard to detect in advance because the type system
 doesn't tell you what exceptions a given function might throw. For this
@@ -446,14 +696,33 @@ exception to determine the nature of a failure. A better approach is to
 narrow the scope of the exception handler, so that when it fires it's very
 clear what part of the code failed:
 
-<link rel="import" href="code/error-handling/main.mlt" part="33" />
+```ocaml
+let lookup_weight ~compute_weight alist key =
+  match
+    try Some (find_exn alist key)
+    with _ -> None
+  with
+  | None -> 0.
+  | Some data -> compute_weight data ;;
+:: val lookup_weight :
+::   compute_weight:('a -> float) -> (string * 'a) list -> string -> float =
+::   <fun>
+```
 
 This nesting of a `try` within a `match` statement is both awkward and
 involves some unnecessary computation (in particular, the allocation of the
 option). Happily, OCaml allows for exceptions to be caught by match
 statements directly, which lets you write this more concisely as follows.
 
-<link rel="import" href="code/error-handling/main.mlt" part="33.1" />
+```ocaml
+let lookup_weight ~compute_weight alist key =
+  match find_exn alist key with
+  | exception _ -> 0.
+  | data -> compute_weight data ;;
+:: val lookup_weight :
+::   compute_weight:('a -> float) -> (string * 'a) list -> string -> float =
+::   <fun>
+```
 
 Note that the `exception` keyword is used to mark the exception-handling
 cases.
@@ -461,7 +730,15 @@ cases.
 Best of all is to avoid exceptions entirely, which we could do by using the
 exception-free function from Base, `List.Assoc.find`, instead:
 
-<link rel="import" href="code/error-handling/main.mlt" part="34" />
+```ocaml
+let lookup_weight ~compute_weight alist key =
+  match List.Assoc.find ~equal:String.equal alist key with
+  | None -> 0.
+  | Some data -> compute_weight data ;;
+:: val lookup_weight :
+::   compute_weight:('a -> float) ->
+::   (string, 'a) Base__List.Assoc.t -> string -> float = <fun>
+```
 
 ### Backtraces {#backtraces}
 
@@ -471,13 +748,32 @@ program:[debugging/stack backtraces]{.idx}[stack
 backtraces]{.idx}[backtraces]{.idx}:[exceptions/stack backtraces
 for]{.idx}[error handling/exception backtracing]{.idx}
 
-<link rel="import" href="code/error-handling/blow_up/blow_up.ml" />
+```ocaml
+open Base
+open Stdio
+exception Empty_list
+
+let list_max = function
+  | [] -> raise Empty_list
+  | hd :: tl -> List.fold tl ~init:hd ~f:(Int.max)
+
+let () =
+  printf "%d\n" (list_max [1;2;3]);
+  printf "%d\n" (list_max [])
+```
 
 If we build and run this program, we'll get a stack backtrace that will
 provide some information about where the error occurred and the stack of
 function calls that were in place at the time of the error:
 
-<link rel="import" href="code/error-handling/blow_up/jbuild" />
+```
+(executable
+  ((name blow_up)
+   (modules blow_up)
+   (libraries (core))
+  )
+)
+```
 
 <link rel="import" href="code/error-handling/blow_up/build_blow_up.errsh" part=
 "trace" />
@@ -496,7 +792,14 @@ linking in Core, you will have backtraces enabled by default.
 Even using Core and compiling with debugging symbols, you can turn backtraces
 off by setting the `OCAMLRUNPARAM` environment variable to be empty:
 
-<link rel="import" href="code/error-handling/blow_up/jbuild" />
+```
+(executable
+  ((name blow_up)
+   (modules blow_up)
+   (libraries (core))
+  )
+)
+```
 
 <link rel="import" href="code/error-handling/blow_up/build_blow_up.errsh" part=
 "no_trace" />
@@ -511,7 +814,45 @@ exceptions are fairly fast, but they're even faster still if you disable
 backtraces. Here's a simple benchmark that shows the effect, using the
 `core_bench` package:
 
-<link rel="import" href="code/error-handling/exn_cost/exn_cost.ml" />
+```ocaml
+open Core
+open Core_bench
+
+exception Exit
+
+let simple_computation () =
+  List.range 0 10
+  |> List.fold ~init:0 ~f:(fun sum x -> sum + x * x)
+  |> ignore
+
+let simple_with_handler () =
+  try simple_computation () with Exit -> ()
+
+let end_with_exn () =
+  try
+    simple_computation ();
+    raise Exit
+  with Exit -> ()
+
+let end_with_exn_notrace () =
+  try
+    simple_computation ();
+    Exn.raise_without_backtrace Exit
+  with Exit -> ()
+
+let () =
+  [ Bench.Test.create ~name:"simple computation"
+      (fun () -> simple_computation ());
+    Bench.Test.create ~name:"simple computation w/handler"
+      (fun () -> simple_with_handler ());
+    Bench.Test.create ~name:"end with exn"
+      (fun () -> end_with_exn ());
+    Bench.Test.create ~name:"end with exn notrace"
+      (fun () -> end_with_exn_notrace ());
+  ]
+  |> Bench.make_command
+  |> Command.run
+```
 
 We're testing three cases here: a simple computation with no exceptions; the
 same computation with an exception handler but no thrown exceptions; and
@@ -520,15 +861,42 @@ flow back to the caller.
 
 If we run this with stacktraces on, the benchmark results look like this:
 
-<link rel="import" href="code/error-handling/exn_cost/jbuild" />
+```
+(executable
+  ((name exn_cost)
+   (modules exn_cost)
+   (libraries (core core_bench))
+  )
+)
+```
 
-<link rel="import" href="code/error-handling/exn_cost/run_exn_cost.sh" />
+
+
+```sh
+  $ jbuilder build exn_cost.exe
+%% --non-deterministic [skip]
+  $ ./_build/default/exn_cost.exe -ascii cycles -quota 1
+  Estimated testing time 4s (4 benchmarks x 1s). Change using -quota SECS.
+
+    Name                           Time/Run   Cycls/Run   mWd/Run   Percentage
+   ------------------------------ ---------- ----------- --------- ------------
+    simple computation             177.25ns     353.04c    84.00w       90.04%
+    simple computation w/handler   171.60ns     341.81c    84.00w       87.17%
+    end with exn                   196.85ns     392.11c    84.00w      100.00%
+    end with exn notrace           169.20ns     337.00c    84.00w       85.95%
+
+```
 
 Here, we see that we lose something like 30 cycles to adding an exception
 handler, and 60 more to actually throwing and catching an exception. If we
 turn backtraces off, then the results look like this:
 
-<link rel="import" href="code/error-handling/exn_cost/run_exn_cost_notrace.sh" />
+```sh
+  $ OCAMLRUNPARAM= ./_build/default/exn_cost.exe -ascii cycles -quota 1
+  sh: ./_build/default/exn_cost.exe: No such file or directory
+@@ exit 127
+
+```
 
 Here, the handler costs about the same, but the exception itself costs only
 25, as opposed to 60 additional cycles. All told, this should only matter if
@@ -545,17 +913,35 @@ that exception into an option as follows:[exceptions/and error-aware
 types]{.idx}[error-aware return types]{.idx}[error handling/combining
 exceptions and error-aware types]{.idx}
 
-<link rel="import" href="code/error-handling/main.mlt" part="35" />
+```ocaml
+let find alist key =
+  Option.try_with (fun () -> find_exn alist key) ;;
+:: val find : (string * 'a) list -> string -> 'a option = <fun>
+find ["a",1; "b",2] "c";;
+:: - : int option = None
+find ["a",1; "b",2] "b";;
+:: - : int option = Some 2
+```
 
 And `Result` and `Or_error` have similar `try_with` functions. So, we could
 write:
 
-<link rel="import" href="code/error-handling/main.mlt" part="36" />
+```ocaml
+let find alist key =
+  Or_error.try_with (fun () -> find_exn alist key) ;;
+:: val find : (string * 'a) list -> string -> 'a Or_error.t = <fun>
+find ["a",1; "b",2] "c";;
+:: - : int Or_error.t = Base__.Result.Error ("Key_not_found(\"c\")")
+```
 
 And then we can reraise that exception:
 
-<link rel="import" href="code/error-handling/main.mlt" part="37" />
-
+```ocaml
+Or_error.ok_exn (find ["a",1; "b",2] "b");;
+:: - : int = 2
+Or_error.ok_exn (find ["a",1; "b",2] "c");;
+1> Exception: Key_not_found("c").
+```
 
 ## Choosing an Error-Handling Strategy {#choosing-an-error-handling-strategy}
 
@@ -590,5 +976,4 @@ explicit than having none of them marked.
 In short, for errors that are a foreseeable and ordinary part of the
 execution of your production code and that are not omnipresent, error-aware
 return types are typically the right solution.
-
 

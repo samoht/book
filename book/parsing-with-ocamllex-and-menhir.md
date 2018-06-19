@@ -71,14 +71,38 @@ snippet of text that represents a JSON object containing a string labeled
 `title` and an array containing two objects, each with a name and array of
 zip codes:
 
-<link rel="import" href="code/parsing/example.json" />
+```
+{
+  "title": "Cities",
+  "cities": [
+    { "name": "Chicago",  "zips": [60601] },
+    { "name": "New York", "zips": [10004] } 
+  ]
+}
+```
 
 At a syntactic level, we can think of a JSON file as a series of simple
 logical units, like curly braces, square brackets, commas, colons,
 identifiers, numbers, and quoted strings. Thus, we could represent our JSON
 text as a sequence of tokens of the following type:
 
-<link rel="import" href="code/parsing/manual_token_type.ml" />
+```ocaml
+type token =
+  | NULL
+  | TRUE
+  | FALSE
+  | STRING of string
+  | INT of int
+  | FLOAT of float
+  | ID of string
+  | LEFT_BRACK
+  | RIGHT_BRACK
+  | LEFT_BRACE
+  | RIGHT_BRACE
+  | COMMA
+  | COLON
+  | EOF
+```
 
 Note that this representation loses some information about the original text.
 For example, whitespace is not represented. It's common, and indeed useful,
@@ -88,7 +112,9 @@ required for understanding its meaning.
 If we converted the preceding example into a list of these tokens, it would
 look something like this:
 
-<link rel="import" href="code/parsing/tokens.ml" />
+```ocaml
+[ LEFT_BRACE; ID("title"); COLON; STRING("Cities"); COMMA; ID("cities"); ...
+```
 
 This kind of representation is easier to work with than the original text,
 since it gets rid of some unimportant syntactic details and adds useful
@@ -96,7 +122,47 @@ structure. But it's still a good deal more low-level than the simple AST we
 used for representing JSON data in
 [Handling Json Data](json.html#handling-json-data){data-type=xref}:
 
-<link rel="import" href="code/parsing/json.ml" />
+```ocaml
+type value = [
+  | `Assoc of (string * value) list
+  | `Bool of bool
+  | `Float of float
+  | `Int of int
+  | `List of value list
+  | `Null
+  | `String of string
+]
+
+(* part 1 *)
+open Core
+open Out_channel
+
+let rec output_value outc = function
+  | `Assoc obj  -> print_assoc outc obj
+  | `List l     -> print_list outc l
+  | `String s   -> printf "\"%s\"" s
+  | `Int i      -> printf "%d" i
+  | `Float x    -> printf "%f" x
+  | `Bool true  -> output_string outc "true"
+  | `Bool false -> output_string outc "false"
+  | `Null       -> output_string outc "null"
+
+and print_assoc outc obj =
+  output_string outc "{ ";
+  let sep = ref "" in
+  List.iter ~f:(fun (key, value) ->
+      printf "%s\"%s\": %a" !sep key output_value value;
+      sep := ",\n  ") obj;
+  output_string outc " }"
+
+and print_list outc arr =
+  output_string outc "[";
+  List.iteri ~f:(fun i v ->
+      if i > 0 then
+        output_string outc ", ";
+      output_value outc v) arr;
+  output_string outc "]"
+```
 
 This representation is much richer than our token stream, capturing the fact
 that JSON values can be nested inside each other and that JSON has a variety
@@ -104,7 +170,13 @@ of value types, including numbers, strings, arrays, and objects. The parser
 we'll write will convert a token stream into a value of this AST type, as
 shown below for our earlier JSON example:
 
-<link rel="import" href="code/parsing/parsed_example.ml" />
+```ocaml
+`Assoc
+  ["title", `String "Cities";
+   "cities", `List
+     [`Assoc ["name", `String "Chicago"; "zips", `List [`Int 60601]];
+      `Assoc ["name", `String "New York"; "zips", `List [`Int 10004]]]]
+```
 
 ## Defining a Parser {#defining-a-parser}
 
@@ -121,7 +193,22 @@ syntax `%token <`*`type`*`>`*`uid`*, where the *`<type>`* is optional and
 *`uid`* is a capitalized identifier. For JSON, we need tokens for numbers,
 strings, identifiers, and punctuation: [tokens, declaration of]{.idx}
 
-<link rel="import" href="code/parsing/parser.mly" />
+```ocaml
+%token <int> INT
+%token <float> FLOAT
+%token <string> ID
+%token <string> STRING
+%token TRUE
+%token FALSE
+%token NULL
+%token LEFT_BRACE
+%token RIGHT_BRACE
+%token LEFT_BRACK
+%token RIGHT_BRACK
+%token COLON
+%token COMMA
+%token EOF
+```
 
 The `<`*`type`*`>` specifications mean that a token carries a value. The
 `INT` token carries an integer value with it, `FLOAT` has a `float` value,
@@ -152,14 +239,22 @@ the non-terminal symbol `prog`, and by declaring that when parsed, a
 `Json.value option`. We then end the declaration section of the parser with a
 `%%`:
 
-<link rel="import" href="code/parsing/parser.mly" part="1" />
+```ocaml
+%start <Json.value option> prog
+%%
+```
 
 Once that's in place, we can start specifying the productions. In `menhir`,
 productions are organized into *rules*, where each rule lists all the
 possible productions for a given nonterminal symbols. Here, for example, is
 the rule for `prog`:
 
-<link rel="import" href="code/parsing/parser.mly" part="2" />
+```ocaml
+prog:
+  | EOF       { None }
+  | v = value { Some v }
+  ;
+```
 
 The syntax for this is reminiscent of an OCaml `match` statement. The pipes
 separate the individual productions, and the curly braces contain a
@@ -178,7 +273,26 @@ within the curly braces for that production.
 
 Now let's consider a more complex example, the rule for the `value` symbol:
 
-<link rel="import" href="code/parsing/parser.mly" part="3" />
+```ocaml
+value:
+  | LEFT_BRACE; obj = object_fields; RIGHT_BRACE
+    { `Assoc obj }
+  | LEFT_BRACK; vl = array_values; RIGHT_BRACK
+    { `List vl }
+  | s = STRING
+    { `String s }
+  | i = INT
+    { `Int i }
+  | x = FLOAT
+    { `Float x }
+  | TRUE
+    { `Bool true }
+  | FALSE
+    { `Bool false }
+  | NULL
+    { `Null }
+  ;
+```
 
 According to these rules, a JSON `value` is either: [values/in JSON
 data]{.idx}
@@ -203,7 +317,15 @@ side, because what we're matching on in this case is an empty sequence of
 tokens. The comment `(* empty *)` is used to make this clear:
 [rev_object_fields]{.idx}[object_fields]{.idx}
 
-<link rel="import" href="code/parsing/parser.mly" part="4" />
+```ocaml
+object_fields: obj = rev_object_fields { List.rev obj };
+
+rev_object_fields:
+  | (* empty *) { [] }
+  | obj = rev_object_fields; COMMA; k = ID; COLON; v = value
+    { (k, v) :: obj }
+  ;
+```
 
 The rules are structured as they are because `menhir` generates
 left-recursive parsers, which means that the constructed pushdown automaton
@@ -212,14 +334,27 @@ right-recursive rule accepts the same input, but during parsing, it requires
 linear stack space to read object field definitions: [Menhir parser
 generator/left-recursive definitions]{.idx}
 
-<link rel="import" href="code/parsing/right_rec_rule.mly" part="4" />
+```ocaml
+(* Inefficient right-recursive rule *)
+object_fields:
+  | (* empty *) { [] }
+  | k = ID; COLON; v = value; COMMA; obj = object_fields
+    { (k, v) :: obj }
+```
 
 Alternatively, we could keep the left-recursive definition and simply
 construct the returned value in left-to-right order. This is even less
 efficient, since the complexity of building the list incrementally in this
 way is quadratic in the length of the list:
 
-<link rel="import" href="code/parsing/quadratic_rule.mly" part="4" />
+```ocaml
+(* Quadratic left-recursive rule *)
+object_fields:
+  | (* empty *) { [] }
+  | obj = object_fields; COMMA; k = ID; COLON; v = value
+    { obj @ [k, v] }
+  ;
+```
 
 Assembling lists like this is a pretty common requirement in most realistic
 grammars, and the preceding rules (while useful for illustrating how parsing
@@ -233,7 +368,30 @@ A version of the JSON grammar using these more succinct Menhir rules follows.
 Notice the use of `separated_list` to parse both JSON objects and lists with
 one rule:
 
-<link rel="import" href="code/parsing/short_parser.mly" part="1" />
+```ocaml
+prog:
+  | v = value { Some v }
+  | EOF       { None   } ;
+
+value:
+  | LEFT_BRACE; obj = obj_fields; RIGHT_BRACE { `Assoc obj  }
+  | LEFT_BRACK; vl = list_fields; RIGHT_BRACK { `List vl    }
+  | s = STRING                                { `String s   }
+  | i = INT                                   { `Int i      }
+  | x = FLOAT                                 { `Float x    }
+  | TRUE                                      { `Bool true  }
+  | FALSE                                     { `Bool false }
+  | NULL                                      { `Null       } ;
+
+obj_fields:
+    obj = separated_list(COMMA, obj_field)    { obj } ;
+
+obj_field:
+    k = STRING; COLON; v = value              { (k, v) } ;
+
+list_fields:
+    vl = separated_list(COMMA, value)         { vl } ;
+```
 
 We can invoke `menhir` by using `corebuild` with the `-use-menhir` flag. This
 tells the build system to switch to using `menhir` instead of `ocamlyacc` to
@@ -241,10 +399,18 @@ handle files with the `.mly` suffix: [-use-menhir
 flag]{.idx data-primary-sortas=use}[Menhir parser
 generator/invoking]{.idx}<a data-type="indexterm" data-startref="PARSparsdef">&nbsp;</a>
 
-<link rel="import" href="code/parsing/jbuild" />
+```
+(rule
+ ((targets (short_parser.mli short_parser.ml))
+  (deps (short_parser.mly))
+  (action (ignore-stderr (run menhir --external-tokens Json --explain ${<})))))
+```
 
-<link rel="import" href="code/parsing/build_short_parser.sh" />
 
+
+```sh
+
+```
 
 ## Defining a Lexer {#defining-a-lexer}
 
@@ -260,7 +426,21 @@ Let's walk through the definition of a lexer section by section. The first
 section is an optional chunk of OCaml code that is bounded by a pair of curly
 braces: [lexers/optional OCaml code for]{.idx}
 
-<link rel="import" href="code/parsing/lexer.mll" />
+```ocaml
+{
+open Lexing
+open Parser
+
+exception SyntaxError of string
+
+let next_line lexbuf =
+  let pos = lexbuf.lex_curr_p in
+  lexbuf.lex_curr_p <-
+    { pos with pos_bol = lexbuf.lex_curr_pos;
+               pos_lnum = pos.pos_lnum + 1
+    }
+}
+```
 
 This code is there to define utility functions used by later snippets of
 OCaml code and to set up the environment by opening useful modules and define
@@ -280,7 +460,9 @@ really this is a specialized syntax for declaring regular expressions. Here's
 an example: [regular expressions]{.idx}[lexers/regular expressions
 collection]{.idx}
 
-<link rel="import" href="code/parsing/lexer.mll" part="1" />
+```ocaml
+let int = '-'? ['0'-'9'] ['0'-'9']*
+```
 
 The syntax here is something of a hybrid between OCaml syntax and traditional
 regular expression syntax. The `int` regular expression specifies an optional
@@ -295,11 +477,20 @@ points and exponents. We make the expression easier to read by building up a
 sequence of named regular expressions, rather than creating one big and
 impenetrable expression:
 
-<link rel="import" href="code/parsing/lexer.mll" part="2" />
+```ocaml
+let digit = ['0'-'9']
+let frac = '.' digit*
+let exp = ['e' 'E'] ['-' '+']? digit+
+let float = digit* frac? exp?
+```
 
 Finally, we define whitespace, newlines, and identifiers:
 
-<link rel="import" href="code/parsing/lexer.mll" part="3" />
+```ocaml
+let white = [' ' '\t']+
+let newline = '\r' | '\n' | "\r\n"
+let id = ['a'-'z' 'A'-'Z' '_'] ['a'-'z' 'A'-'Z' '0'-'9' '_']*
+```
 
 The `newline` introduces the `|` operator, which lets one of several
 alternative regular expressions match (in this case, the various
@@ -313,7 +504,26 @@ quite complicated, using side effects and invoking other rules as part of the
 body of the rule. Let's look at the `read` rule for parsing a JSON
 expression: [lexers/rules for]{.idx}
 
-<link rel="import" href="code/parsing/lexer.mll" part="4" />
+```ocaml
+rule read =
+  parse
+  | white    { read lexbuf }
+  | newline  { next_line lexbuf; read lexbuf }
+  | int      { INT (int_of_string (Lexing.lexeme lexbuf)) }
+  | float    { FLOAT (float_of_string (Lexing.lexeme lexbuf)) }
+  | "true"   { TRUE }
+  | "false"  { FALSE }
+  | "null"   { NULL }
+  | '"'      { read_string (Buffer.create 17) lexbuf }
+  | '{'      { LEFT_BRACE }
+  | '}'      { RIGHT_BRACE }
+  | '['      { LEFT_BRACK }
+  | ']'      { RIGHT_BRACK }
+  | ':'      { COLON }
+  | ','      { COMMA }
+  | _ { raise (SyntaxError ("Unexpected char: " ^ Lexing.lexeme lexbuf)) }
+  | eof      { EOF }
+```
 
 The rules are structured very similarly to pattern matches, except that the
 variants are replaced by regular expressions on the left-hand side. The
@@ -328,7 +538,9 @@ skips the input whitespace and returns the following token. The action
 advance the line number for the lexer using the utility function that we
 defined at the top of the file. Let's skip to the third action:
 
-<link rel="import" href="code/parsing/lexer_int_fragment.mll" />
+```ocaml
+| int { INT (int_of_string (Lexing.lexeme lexbuf)) }
+```
 
 This action specifies that when the input matches the `int` regular
 expression, then the lexer should return the expression
@@ -362,7 +574,24 @@ multiple lexers in the same file, and the definitions can be recursive. In
 this case, we use recursion to match string literals using the following rule
 definition: [recursion/in lexers]{.idx}[lexers/recursive rules]{.idx}
 
-<link rel="import" href="code/parsing/lexer.mll" part="5" />
+```ocaml
+and read_string buf =
+  parse
+  | '"'       { STRING (Buffer.contents buf) }
+  | '\\' '/'  { Buffer.add_char buf '/'; read_string buf lexbuf }
+  | '\\' '\\' { Buffer.add_char buf '\\'; read_string buf lexbuf }
+  | '\\' 'b'  { Buffer.add_char buf '\b'; read_string buf lexbuf }
+  | '\\' 'f'  { Buffer.add_char buf '\012'; read_string buf lexbuf }
+  | '\\' 'n'  { Buffer.add_char buf '\n'; read_string buf lexbuf }
+  | '\\' 'r'  { Buffer.add_char buf '\r'; read_string buf lexbuf }
+  | '\\' 't'  { Buffer.add_char buf '\t'; read_string buf lexbuf }
+  | [^ '"' '\\']+
+    { Buffer.add_string buf (Lexing.lexeme lexbuf);
+      read_string buf lexbuf
+    }
+  | _ { raise (SyntaxError ("Illegal string character: " ^ Lexing.lexeme lexbuf)) }
+  | eof { raise (SyntaxError ("String is not terminated")) }
+```
 
 This rule takes a `buf : Buffer.t` as an argument. If we reach the
 terminating double quote `"`, then we return the contents of the buffer as a
@@ -416,14 +645,34 @@ type definition in `parser.mli`, the parsing function expects a lexer of type
 `Lexing.lexbuf -> token`, and a `lexbuf`: [parsing/lexer and parser
 composition]{.idx}
 
-<link rel="import" href="code/parsing/prog.mli" />
+```ocaml
+val prog:(Lexing.lexbuf -> token) -> Lexing.lexbuf -> Json.value option
+```
 
 Before we start with the lexing, let's first define some functions to handle
 parsing errors. There are currently two errors: `Parser.Error` and
 `Lexer.SyntaxError`. A simple solution when encountering an error is to print
 the error and give up: [errors/"give up on first error" approach]{.idx}
 
-<link rel="import" href="code/parsing-test/test.ml" />
+```ocaml
+open Core
+open Lexer
+open Lexing
+
+let print_position outx lexbuf =
+  let pos = lexbuf.lex_curr_p in
+  fprintf outx "%s:%d:%d" pos.pos_fname
+    pos.pos_lnum (pos.pos_cnum - pos.pos_bol + 1)
+
+let parse_with_error lexbuf =
+  try Parser.prog Lexer.read lexbuf with
+  | SyntaxError msg ->
+    fprintf stderr "%a: %s\n" print_position lexbuf msg;
+    None
+  | Parser.Error ->
+    fprintf stderr "%a: syntax error\n" print_position lexbuf;
+    exit (-1)
+```
 
 The "give up on the first error" approach is easy to implement but isn't very
 friendly. In general, error handling can be pretty intricate, and we won't
@@ -440,21 +689,81 @@ structure, where the `Lexing.from_channel` function is used to construct a
 file. We define a function `Json.output_value`, not shown here, to print a
 `Json.value`:
 
-<link rel="import" href="code/parsing-test/test.ml" part="1" />
+```ocaml
+let rec parse_and_print lexbuf =
+  match parse_with_error lexbuf with
+  | Some value ->
+    printf "%a\n" Json.output_value value;
+    parse_and_print lexbuf
+  | None -> ()
+
+let loop filename () =
+  let inx = In_channel.create filename in
+  let lexbuf = Lexing.from_channel inx in
+  lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = filename };
+  parse_and_print lexbuf;
+  In_channel.close inx
+
+let () =
+  Command.basic_spec ~summary:"Parse and display JSON"
+    Command.Spec.(empty +> anon ("filename" %: file))
+    loop
+  |> Command.run
+```
 
 Here's a test input file we can use to test the code we just wrote:
 
-<link rel="import" href="code/parsing-test/test1.json" />
+```
+true
+false
+null
+[1, 2, 3., 4.0, .5, 5.5e5, 6.3]
+"Hello World"
+{ "field1": "Hello",
+  "field2": 17e13,
+  "field3": [1, 2, 3],
+  "field4": { "fieldA": 1, "fieldB": "Hello" }
+}
+```
 
 Now build and run the example using this file, and you can see the full
 parser in action:
 
-<link rel="import" href="code/parsing-test/build_test.sh" />
+```sh
+  $ jbuilder build test.exe
+        menhir parser.{ml,mli}
+  Warning: you are using the standard library and/or the %inline keyword. We
+  recommend switching on --infer in order to avoid obscure type error messages.
+  $ ./_build/default/test.exe test1.json
+  true
+  false
+  null
+  [1, 2, 3.000000, 4.000000, 0.500000, 550000.000000, 6.300000]
+  "Hello World"
+  { "field1": "Hello",
+    "field2": 170000000000000.000000,
+    "field3": [1, 2, 3],
+    "field4": { "fieldA": 1,
+    "fieldB": "Hello" } }
+
+```
 
 With our simple error handling scheme, errors are fatal and cause the program
 to terminate with a nonzero exit code:
 
-<link rel="import" href="code/parsing-test/run_broken_test.errsh" />
+```sh
+  $ cat test2.json
+  { "name": "Chicago",
+    "zips": [12345,
+  }
+  { "name": "New York",
+    "zips": [10004]
+  }
+  $ ./_build/default/test.exe test2.json
+  sh: ./_build/default/test.exe: No such file or directory
+@@ exit 127
+
+```
 
 That wraps up our parsing tutorial. As an aside, notice that the JSON
 polymorphic variant type that we defined in this chapter is actually
@@ -462,5 +771,4 @@ structurally compatible with the Yojson representation explained in
 [Handling Json Data](json.html#handling-json-data){data-type=xref}. That
 means that you can take this parser and use it with the helper functions in
 Yojson to build more sophisticated applications.
-
 

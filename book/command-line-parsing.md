@@ -44,7 +44,17 @@ a file, applies the MD5 one-way cryptographic hash function to the data, and
 outputs an ASCII hex representation of the result: [MD5 one-way cryptographic
 hash function]{.idx}[command-line parsing/basic approach to]{.idx}
 
-<link rel="import" href="code/command-line-parsing/md5/md5.ml" />
+```ocaml
+open Core
+
+let do_hash file =
+  In_channel.with_file file ~f:(fun ic ->
+    let open Cryptokit in
+    hash_channel (Hash.md5 ()) ic
+    |> transform_string (Hexa.encode ())
+    |> print_endline
+  )
+```
 
 The `do_hash` function accepts a `filename` parameter and prints the
 human-readable MD5 string to the console standard output. The first step
@@ -60,7 +70,11 @@ for interactive input if certain inputs are encountered.
 Let's build a parser for a command line UI with a single *anonymous*
 argument, i.e., an argument that is passed in without a flag.
 
-<link rel="import" href="code/command-line-parsing/md5/md5.ml" part="1" />
+```ocaml
+let filename_param =
+  let open Command.Param in
+  anon ("filename" %: string)
+```
 
 Here, `anon` is used to signal the parsing of an anonymous argument, and the
 expression `("filename" %: string)` indicates the textual name of the
@@ -76,7 +90,14 @@ Once we've defined a specification, we need to put it to work on real input.
 The simplest way is to directly create a command-line interface with
 `Command.basic`. [Command.basic]{.idx}
 
-<link rel="import" href="code/command-line-parsing/md5/md5.ml" part="2" />
+```ocaml
+let command =
+  Command.basic
+    ~summary:"Generate an MD5 hash of the input data"
+    ~readme:(fun () -> "More detailed information")
+    (Command.Param.map filename_param ~f:(fun filename ->
+         (fun () -> do_hash filename)))
+```
 
 The `summary` argument is a one-line description which goes at the top of the
 help screen, while the (optional) `readme` argument is for providing a more
@@ -87,7 +108,10 @@ parser. This will be easier to understand if we first learn a bit more about
 the type signatures of the various components we've been using. Let's do that
 by recreating some of this code in the toplevel.
 
-<link rel="import" href="code/command-line-parsing/main.mlt" part="1" />
+```ocaml
+let filename_param = Command.Param.(anon ("filename" %: string));;
+:: val filename_param : string Command.Spec.param = <abstr>
+```
 
 The type parameter of `filename_param` is there to indicate the type of the
 value returned by the parser; in this case, `string`.
@@ -95,7 +119,15 @@ value returned by the parser; in this case, `string`.
 But `Command.basic` requires a parameter parser that returns a value of type
 `unit -> unit`. We can see that by using `#show` to explore the types.
 
-<link rel="import" href="code/command-line-parsing/main.mlt" part="2" />
+```ocaml
+#show Command.basic;;
+1> val basic : unit Command.basic_command
+#show Command.basic_command;;
+1> type nonrec 'result basic_command =
+1>     summary:string ->
+1>     ?readme:(unit -> string) ->
+1>     (unit -> 'result) Command.Spec.param -> Command.t
+```
 
 Note that the `'result` parameter of the type alias `basic_command` is
 instantiated as `unit` for the type of `Command.basic`.
@@ -109,7 +141,10 @@ The answer is to use a `map` function to change the value returned by the
 parser. As you can see below, the type of `Command.Param.map` is very similar
 to the code of `List.map`.
 
-<link rel="import" href="code/command-line-parsing/main.mlt" part="3" />
+```ocaml
+#show Command.Param.map;;
+1> val map : 'a Command.Spec.param -> f:('a -> 'b) -> 'b Command.Spec.param
+```
 
 In our program, we used `map` to convert the `filename_param` parser, which
 returns a string representing the file name, into a parser that returns a
@@ -120,20 +155,42 @@ function of type `unit -> unit` containing the body of the command.
 Once we've defined the basic command, running it is just one function call
 away.
 
-<link rel="import" href="code/command-line-parsing/md5/md5.ml" part="3" />
+```ocaml
+let () =
+  Command.run ~version:"1.0" ~build_info:"RWO" command
+```
 
 `Command.run` takes a couple of optional arguments that are useful to
 identify which version of the binary you are running in production. You'll
 need to install Cryptokit via `opam install cryptokit` before building this
 example. Once that's completed, run the following to compile the binary.
 
-<link rel="import" href="code/command-line-parsing/md5/jbuild" />
+```
+(executable
+  ((name md5)
+   (libraries (core cryptokit))
+   (preprocess (pps (ppx_jane)))
+  )
+)
+```
 
-<link rel="import" href="code/command-line-parsing/md5/md5.sh" part="build" />
+
+
+```sh
+  $ jbuilder build md5.exe
+  Done: 3/7 (jobs: 1)                   Done: 4/7 (jobs: 1)                   Done: 5/7 (jobs: 1)                   Done: 74/77 (jobs: 1)                     Done: 75/77 (jobs: 1)                     Done: 76/77 (jobs: 1)
+
+```
 
 You can now query the version information for the binary you just compiled:
 
-<link rel="import" href="code/command-line-parsing/md5/md5.sh" part="get version" />
+```sh
+  $ ./_build/default/md5.exe -version
+  1.0
+  $ ./_build/default/md5.exe -build-info
+  RWO
+
+```
 
 The versions that you see in the output were defined via the optional
 arguments to `Command.run`. You can leave these blank in your own programs or
@@ -143,18 +200,60 @@ case of Mercurial).
 
 We can invoke our binary with `-help` to see the auto-generated help.
 
-<link rel="import" href="code/command-line-parsing/md5/md5.sh" part="get help" />
+```sh
+  $ ./_build/default/md5.exe -help
+  Generate an MD5 hash of the input data
+
+    md5.exe FILENAME
+
+  More detailed information
+
+  === flags ===
+
+    [-build-info]  print info about this build and exit
+    [-version]     print the version of this build and exit
+    [-help]        print this help text and exit
+                   (alias: -?)
+
+
+```
 
 If you supply the `filename` argument, then `do_hash` is called with the
 argument and the MD5 output is displayed to the standard output.
 
-<link rel="import" href="code/command-line-parsing/md5/md5.sh" part="run" />
+```sh
+%% --non-deterministic
+  $ ./_build/default/md5.exe ./_build/default/md5.exe
+  755e1de2f36cfffd870269161df6a3f2
+
+```
 
 And that's all it took to build our little MD5 utility! Here's a complete
 version of the example we just walked through, made slightly more succinct by
 removing intermediate variables.
 
-<link rel="import" href="code/command-line-parsing/md5_succinct/md5.ml" />
+```ocaml
+open Core
+
+let do_hash file =
+  In_channel.with_file file ~f:(fun ic ->
+    let open Cryptokit in
+    hash_channel (Hash.md5 ()) ic
+    |> transform_string (Hexa.encode ())
+    |> print_endline
+  )
+
+let command =
+  Command.basic
+    ~summary:"Generate an MD5 hash of the input data"
+    ~readme:(fun () -> "More detailed information")
+    Command.Param.(
+     map (anon ("filename" %: string))
+       ~f:(fun filename -> (fun () -> do_hash filename))))
+
+let () =
+  Command.run ~version:"1.0" ~build_info:"RWO" command
+```
 
 ### Multi-argument commands {#multiple-arguments}
 
@@ -163,7 +262,12 @@ course create multi-argument commands as well. We can make a parser for
 multiple arguments by binding together simpler parsers, using the function
 `Command.Param.both`. Here is its type.
 
-<link rel="import" href="code/command-line-parsing/main.mlt" part="4" />
+```ocaml
+#show Command.Param.both;;
+1> val both :
+1>   'a Command.Spec.param ->
+1>   'b Command.Spec.param -> ('a * 'b) Command.Spec.param
+```
 
 `both` allows us to take two parameter parsers and combine them into a single
 parser that returns the two arguments as a pair. In the following, we rewrite
@@ -171,12 +275,43 @@ our `md5` program so it takes two anonymous arguments: the first is an
 integer saying how many characters of the hash to print out, and the second
 is the filename.
 
-<link rel="import" href="code/command-line-parsing/md5_multiarg/md5.ml" />
+```ocaml
+open Core
+
+let do_hash hash_length filename =
+  In_channel.with_file filename ~f:(fun ic ->
+    let open Cryptokit in
+    hash_channel (Hash.md5 ()) ic
+    |> transform_string (Hexa.encode ())
+    |> (fun s -> String.prefix s hash_length)
+    |> print_endline
+  )
+
+let command =
+  Command.basic
+    ~summary:"Generate an MD5 hash of the input data"
+    ~readme:(fun () -> "More detailed information")
+    Command.Param.(
+      map (both
+            (anon ("hash_length" %: int))
+            (anon ("filename" %: string)))
+       ~f:(fun (hash_length,filename) ->
+            (fun () -> do_hash hash_length filename)))
+
+let () =
+  Command.run ~version:"1.0" ~build_info:"RWO" command
+```
 
 Building and running this command, we can see that it now indeed expects two
 arguments.
 
-<link rel="import" href="code/command-line-parsing/md5_multiarg/md5.sh" />
+```sh
+  $ jbuilder build md5.exe
+  Done: 3/5 (jobs: 1)                   Done: 72/75 (jobs: 1)                     Done: 73/75 (jobs: 1)                     Done: 74/75 (jobs: 1)
+  $ ./_build/default/md5.exe 5 ./_build/default/md5.exe
+  9b78e
+
+```
 
 This works well enough for two parameters, but if you want longer parameter
 lists, this approach gets old fast. A better way is to use let-syntax, which
@@ -247,14 +382,53 @@ sufficient. For instance, let's make a `regular_file` argument type that
 ensures that the input file isn't a character device or some other odd UNIX
 file type that can't be fully read. [arguments/defining custom types]{.idx}
 
-<link rel="import" href="code/command-line-parsing/md5_with_custom_arg/md5.ml" />
+```ocaml
+open Core
+
+let do_hash file =
+  In_channel.with_file file ~f:(fun ic ->
+    let open Cryptokit in
+    hash_channel (Hash.md5 ()) ic
+    |> transform_string (Hexa.encode ())
+    |> print_endline
+  )
+
+let regular_file =
+  Command.Arg_type.create
+    (fun filename ->
+       match Sys.is_file filename with
+       | `Yes -> filename
+       | `No | `Unknown ->
+         eprintf "'%s' is not a regular file.\n%!" filename;
+         exit 1)
+
+let command =
+  Command.basic
+    ~summary:"Generate an MD5 hash of the input data"
+    ~readme:(fun () -> "More detailed information")
+    Command.Let_syntax.(
+      let%map_open filename = anon ("filename" %: regular_file) in
+      fun () -> do_hash filename)
+
+let () =
+  Command.run ~version:"1.0" ~build_info:"RWO" command
+```
 
 The `regular_file` function transforms a `filename` string parameter into the
 same string but first checks that the file exists and is a regular file type.
 When you build and run this code, you will see the new error messages if you
 try to open a special device such as `/dev/null`:
 
-<link rel="import" href="code/command-line-parsing/md5_with_custom_arg/run.errsh" />
+```sh
+  $ jbuilder build md5.exe
+  Done: 3/7 (jobs: 1)                   Done: 4/7 (jobs: 1)                   Done: 5/7 (jobs: 1)                   Done: 74/77 (jobs: 1)                     Done: 75/77 (jobs: 1)                     Done: 76/77 (jobs: 1)
+  $ ./_build/default/md5.exe /etc/services
+  6501e9c7bf20b1dc56f015e341f79833
+  $ ./_build/default/md5.exe /dev/null
+  '/dev/null' is not a regular file.
+@@ exit 1
+
+```
 
 ### Optional and Default Arguments {#optional-and-default-arguments}
 
@@ -269,7 +443,17 @@ arguments/and default arguments]{.idx}[arguments/optional arguments]{.idx}
 
 But building this results in a compile-time error.
 
-<link rel="import" href="code/command-line-parsing/md5_with_optional_file_broken/build.errsh" />
+```sh
+  $ jbuilder build md5.exe
+  Done: 3/7 (jobs: 1)                   Done: 4/7 (jobs: 1)                   Done: 5/7 (jobs: 1)                   Done: 74/77 (jobs: 1)                           ocamlc .md5.eobjs/md5.{cmi,cmo,cmt} (exit 2)
+  (cd _build/default && /home/yminsky/.opam/fresh-4.06.1/bin/ocamlc.opt -w -40 -g -bin-annot -I .md5.eobjs -I /home/yminsky/.opam/fresh-4.06.1/lib/base -I /home/yminsky/.opam/fresh-4.06.1/lib/base/caml -I /home/yminsky/.opam/fresh-4.06.1/lib/base/md5 -I /home/yminsky/.opam/fresh-4.06.1/lib/base/shadow_stdlib -I /home/yminsky/.opam/fresh-4.06.1/lib/bin_prot -I /home/yminsky/.opam/fresh-4.06.1/lib/bin_prot/shape -I /home/yminsky/.opam/fresh-4.06.1/lib/core -I /home/yminsky/.opam/fresh-4.06.1/lib/core_kernel -I /home/yminsky/.opam/fresh-4.06.1/lib/core_kernel/base_for_tests -I /home/yminsky/.opam/fresh-4.06.1/lib/cryptokit -I /home/yminsky/.opam/fresh-4.06.1/lib/fieldslib -I /home/yminsky/.opam/fresh-4.06.1/lib/jane-street-headers -I /home/yminsky/.opam/fresh-4.06.1/lib/ocaml/threads -I /home/yminsky/.opam/fresh-4.06.1/lib/parsexp -I /home/yminsky/.opam/fresh-4.06.1/lib/ppx_assert/runtime-lib -I /home/yminsky/.opam/fresh-4.06.1/lib/ppx_bench/runtime-lib -I /home/yminsky/.opam/fresh-4.06.1/lib/ppx_compare/runtime-lib -I /home/yminsky/.opam/fresh-4.06.1/lib/ppx_expect/collector -I /home/yminsky/.opam/fresh-4.06.1/lib/ppx_expect/common -I /home/yminsky/.opam/fresh-4.06.1/lib/ppx_expect/config -I /home/yminsky/.opam/fresh-4.06.1/lib/ppx_hash/runtime-lib -I /home/yminsky/.opam/fresh-4.06.1/lib/ppx_inline_test/config -I /home/yminsky/.opam/fresh-4.06.1/lib/ppx_inline_test/runtime-lib -I /home/yminsky/.opam/fresh-4.06.1/lib/ppx_sexp_conv/runtime-lib -I /home/yminsky/.opam/fresh-4.06.1/lib/sexplib -I /home/yminsky/.opam/fresh-4.06.1/lib/sexplib/unix -I /home/yminsky/.opam/fresh-4.06.1/lib/sexplib0 -I /home/yminsky/.opam/fresh-4.06.1/lib/spawn -I /home/yminsky/.opam/fresh-4.06.1/lib/splittable_random -I /home/yminsky/.opam/fresh-4.06.1/lib/stdio -I /home/yminsky/.opam/fresh-4.06.1/lib/typerep -I /home/yminsky/.opam/fresh-4.06.1/lib/variantslib -I /home/yminsky/.opam/fresh-4.06.1/lib/zarith -no-alias-deps -o .md5.eobjs/md5.cmo -c -impl md5.pp.ml)
+  File "md5.ml", line 18, characters 24-32:
+  Error: This expression has type string option
+         but an expression was expected of type Base.string = string
+  Done: 74/77 (jobs: 1)
+@@ exit 1
+
+```
 
 This is because changing the argument type has also changed the type of the
 value that is returned by the parser. It now produces a `string option`
@@ -277,14 +461,47 @@ instead of a `string`, reflecting the optionality of the argument. We can
 adapt our example to use the new information and read from standard input if
 no file is specified.
 
-<link rel="import" href="code/command-line-parsing/md5_with_optional_file/md5.ml" />
+```ocaml
+open Core
+
+let get_inchan = function
+  | None | Some "-" ->
+    In_channel.stdin
+  | Some filename ->
+    In_channel.create ~binary:true filename
+
+let do_hash filename =
+  let open Cryptokit in
+  get_inchan filename
+  |> hash_channel (Hash.md5 ())
+  |> transform_string (Hexa.encode ())
+  |> print_endline
+
+let command =
+  Command.basic
+    ~summary:"Generate an MD5 hash of the input data"
+    ~readme:(fun () -> "More detailed information")
+    Command.Let_syntax.(
+      let%map_open filename = anon (maybe ("filename" %: file)) in
+      fun () -> do_hash filename)
+
+let () =
+  Command.run ~version:"1.0" ~build_info:"RWO" command
+```
 
 The `filename` parameter to `do_hash` is now a `string option` type. This is
 resolved into an input channel via `get_inchan` to determine whether to open
 the standard input or a file, and then the rest of the command is similar to
 our previous examples.
 
-<link rel="import" href="code/command-line-parsing/md5_with_optional_file/md5.sh" />
+```sh
+  $ jbuilder build md5.exe
+  Done: 3/7 (jobs: 1)                   Done: 4/7 (jobs: 1)                   Done: 5/7 (jobs: 1)                   Done: 74/77 (jobs: 1)                     Done: 75/77 (jobs: 1)                     Done: 76/77 (jobs: 1)
+%% --non-deterministic
+  $ cat /etc/services | ./_build/default/md5.exe
+  27bf1f2dbadd4cae84f1da4dfe8b5cb3
+
+```
 
 Another possible way to handle this would be to supply a dash as the default
 filename if one isn't specified. The `maybe_with_default` function can do
@@ -294,11 +511,42 @@ type.
 The following example behaves exactly the same as the previous example, but
 replaces `maybe` with `maybe_with_default`:
 
-<link rel="import" href="code/command-line-parsing/md5_with_default_file/md5.ml" />
+```ocaml
+open Core
+
+let get_inchan = function
+  | "-"      -> In_channel.stdin
+  | filename -> In_channel.create ~binary:true filename
+
+let do_hash filename =
+  let open Cryptokit in
+  get_inchan filename
+  |> hash_channel (Hash.md5 ())
+  |> transform_string (Hexa.encode ())
+  |> print_endline
+
+let command =
+  Command.basic
+    ~summary:"Generate an MD5 hash of the input data"
+    ~readme:(fun () -> "More detailed information")
+    Command.Let_syntax.(
+      let%map_open filename = anon (maybe_with_default "-" ("filename" %: file)) in
+      fun () -> do_hash filename)
+
+let () =
+  Command.run ~version:"1.0" ~build_info:"RWO" command
+```
 
 Building and running this confirms that it has the same behavior as before.
 
-<link rel="import" href="code/command-line-parsing/md5_with_default_file/md5.sh" />
+```sh
+  $ jbuilder build md5.exe
+  Done: 3/7 (jobs: 1)                   Done: 4/7 (jobs: 1)                   Done: 5/7 (jobs: 1)                   Done: 74/77 (jobs: 1)                     Done: 75/77 (jobs: 1)                     Done: 76/77 (jobs: 1)
+%% --non-deterministic
+  $ cat /etc/services | ./_build/default/md5.exe
+  27bf1f2dbadd4cae84f1da4dfe8b5cb3
+
+```
 
 ### Sequences of Arguments {#sequences-of-arguments}
 
@@ -306,7 +554,31 @@ Another common way of parsing anonymous arguments is as a variable length
 list. As an example, let's modify our MD5 code to take a collection of files
 to process on the command line. [arguments/sequences of]{.idx}
 
-<link rel="import" href="code/command-line-parsing/md5_sequence/md5.ml" />
+```ocaml
+open Core
+
+let do_hash filename ic =
+  let open Cryptokit in
+  hash_channel (Hash.md5 ()) ic
+  |> transform_string (Hexa.encode ())
+  |> fun md5 -> printf "MD5 (%s) = %s\n" filename md5
+
+let command =
+  Command.basic
+    ~summary:"Generate an MD5 hash of the input data"
+    ~readme:(fun () -> "More detailed information")
+    Command.Let_syntax.(
+      let%map_open files = anon (sequence ("filename" %: file)) in
+      fun () ->
+        match files with
+        | [] -> do_hash "-" In_channel.stdin
+        | _ ->
+          List.iter files ~f:(fun file ->
+              In_channel.with_file ~f:(do_hash file) file))
+
+let () =
+  Command.run ~version:"1.0" ~build_info:"RWO" command
+```
 
 The callback function is a little more complex now, to handle the extra
 options. The `files` are now a `string list`, and an empty list reverts to
@@ -314,8 +586,14 @@ using standard input, just as our previous `maybe` and `maybe_with_default`
 examples did. If the list of files isn't empty, then it opens up each file
 and runs them through `do_hash` sequentially.
 
-<link rel="import" href="code/command-line-parsing/md5_sequence/md5.sh" />
+```sh
+  $ jbuilder build md5.exe
+  Done: 3/7 (jobs: 1)                   Done: 4/7 (jobs: 1)                   Done: 5/7 (jobs: 1)                   Done: 74/77 (jobs: 1)                     Done: 75/77 (jobs: 1)                     Done: 76/77 (jobs: 1)
+  $ ./_build/default/md5.exe /etc/services ./_build/default/md5.exe
+  MD5 (/etc/services) = 6501e9c7bf20b1dc56f015e341f79833
+  MD5 (./_build/default/md5.exe) = 6602408aa98478ba5617494f7460d3d9
 
+```
 
 ## Adding Labeled Flags {#adding-labeled-flags}
 
@@ -329,7 +607,42 @@ Let's add two arguments to our `md5` command that mimics the Mac OS X
 version. A `-s` flag specifies the string to be hashed directly on the
 command line and `-t` runs a self-test. The complete example follows.
 
-<link rel="import" href="code/command-line-parsing/md5_with_flags/md5.ml" />
+```ocaml
+open Core
+open Cryptokit
+
+let checksum_from_string buf =
+  hash_string (Hash.md5 ()) buf
+  |> transform_string (Hexa.encode ())
+  |> print_endline
+
+let checksum_from_file filename =
+  let ic = match filename with
+    | "-" -> In_channel.stdin
+    | _   -> In_channel.create ~binary:true filename
+  in
+  hash_channel (Hash.md5 ()) ic
+  |> transform_string (Hexa.encode ())
+  |> print_endline
+
+let command =
+  Command.basic
+    ~summary:"Generate an MD5 hash of the input data"
+    Command.Let_syntax.(
+      let%map_open
+        use_string = flag "-s" (optional string)
+          ~doc:"string Checksum the given string"
+      and trial = flag "-t" no_arg ~doc:" run a built-in time trial"
+      and filename = anon (maybe_with_default "-" ("filename" %: file))
+      in
+      fun () ->
+        if trial then printf "Running time trial\n"
+        else match use_string with
+          | Some buf -> checksum_from_string buf
+          | None -> checksum_from_file filename)
+
+let () = Command.run command
+```
 
 The specification now uses the `flag` function to define the two new labeled,
 command-line arguments. The `doc` string is formatted so that the first word
@@ -381,7 +694,12 @@ You'll have run across this style already when using the OPAM package manager
 (or, in the non-OCaml world, the Git or Mercurial commands). OPAM exposes
 commands in this form:
 
-<link rel="import" href="code/command-line-parsing/opam.rawsh" />
+```
+$ opam config env
+$ opam remote list -k git
+$ opam install --help
+$ opam install cryptokit --verbose
+```
 
 The `config`, `remote`, and `install` keywords form a logical grouping of
 commands that factor out a set of flags and arguments. This lets you prevent
@@ -393,7 +711,15 @@ features. Luckily, it's simple to extend your application to do this in
 Command: just use `Command.group`, which lets you merge a collection of
 `Command.t`'s into one. [Command.group]{.idx}
 
-<link rel="import" href="code/command-line-parsing/main.mlt" part="g.1" />
+```ocaml
+Command.group ;;
+:: - : summary:string ->
+::     ?readme:(unit -> string) ->
+::     ?preserve_subcommand_order:unit ->
+::     ?body:(path:string list -> unit) ->
+::     (string * Command.t) list -> Command.t
+:: = <fun>
+```
 
 The `group` signature accepts a list of basic `Command.t` values and their
 corresponding names. When executed, it looks for the appropriate subcommand
@@ -403,24 +729,98 @@ Let's build the outline of a calendar tool that does a few operations over
 dates from the command line. We first need to define a command that adds days
 to an input date and prints the resulting date:
 
-<link rel="import" href="code/command-line-parsing/cal_add_days/cal.ml" />
+```ocaml
+open Core
+
+let add =
+  Command.basic
+    ~summary:"Add [days] to the [base] date and print day"
+    Command.Let_syntax.(
+      let%map_open
+        base = anon ("base" %: date)
+      and days = anon ("days" %: int)
+      in
+      fun () ->
+       Date.add_days base days
+       |> Date.to_string
+       |> print_endline)
+
+let () = Command.run add
+```
 
 Everything in this command should be familiar to you by now, and it works as
 you might expect.
 
-<link rel="import" href="code/command-line-parsing/cal_add_days/cal.sh" />
+```sh
+  $ jbuilder build cal.exe
+  Done: 3/7 (jobs: 1)                   Done: 4/7 (jobs: 1)                   Done: 5/7 (jobs: 1)                   Done: 70/73 (jobs: 1)                     Done: 71/73 (jobs: 1)                     Done: 72/73 (jobs: 1)                     
+  $ ./_build/default/cal.exe -help
+  Add [days] to the [base] date and print day
+  
+    cal.exe BASE DAYS
+  
+  === flags ===
+  
+    [-build-info]  print info about this build and exit
+    [-version]     print the version of this build and exit
+    [-help]        print this help text and exit
+                   (alias: -?)
+  
+  $ ./_build/default/cal.exe 2012-12-25 40
+  2013-02-03
+
+```
 
 Now, let's also add the ability to take the difference between two dates,
 but, instead of creating a new binary, we'll group both operations as
 subcommands using `Command.group`.
 
-<link rel="import" href="code/command-line-parsing/cal_add_sub_days/cal.ml" />
+```ocaml
+open Core
+
+let add =
+  Command.basic
+    ~summary:"Add [days] to the [base] date"
+    Command.Let_syntax.(
+      let%map_open base = anon ("base" %: date)
+      and days = anon ("days" %: int)
+      in
+      fun () ->
+        Date.add_days base days
+        |> Date.to_string
+        |> print_endline)
+
+let diff =
+  Command.basic
+    ~summary:"Show days between [date1] and [date2]"
+    Command.Let_syntax.(
+      let%map_open
+        date1 = anon ("date1" %: date)
+      and date2 = anon ("date2" %: date)
+      in
+      fun () ->
+        Date.diff date1 date2
+        |> printf "%d days\n")
+
+let command =
+  Command.group ~summary:"Manipulate dates"
+    [ "add", add
+    ; "diff", diff ]
+
+let () = Command.run command
+```
 
 And that's all you really need to add subcommand support! Let's build the
 example first in the usual way and inspect the help output, which now
 reflects the subcommands we just added.
 
-<link rel="import" href="code/command-line-parsing/cal_add_sub_days/jbuild" />
+```
+(executable
+  ((name cal)
+   (libraries (core))
+   (preprocess (pps (ppx_jane)))
+  ))
+```
 
 <link rel="import" href="code/command-line-parsing/cal_add_sub_days/cal.sh" part=
 "build" />
@@ -437,14 +837,62 @@ Sometimes, if a value isn't provided on the command line, you want to prompt
 for it instead. Let's return to the calendar tool we built before.
 [interactive input/prompts for]{.idx}
 
-<link rel="import" href="code/command-line-parsing/cal_add_days/cal.ml" />
+```ocaml
+open Core
+
+let add =
+  Command.basic
+    ~summary:"Add [days] to the [base] date and print day"
+    Command.Let_syntax.(
+      let%map_open
+        base = anon ("base" %: date)
+      and days = anon ("days" %: int)
+      in
+      fun () ->
+       Date.add_days base days
+       |> Date.to_string
+       |> print_endline)
+
+let () = Command.run add
+```
 
 This program requires you to specify both the `base` date and the number of
 `days` to add onto it. If `days` isn't supplied on the command line, an error
 is output. Now let's modify it to interactively prompt for a number of days
 if only the `base` date is supplied.
 
-<link rel="import" href="code/command-line-parsing/cal_add_interactive/cal.ml" />
+```ocaml
+open Core
+
+let add_days base days =
+  Date.add_days base days
+  |> Date.to_string
+  |> print_endline
+
+let prompt_for_string name of_string =
+  printf "enter %s: %!" name;
+  match In_channel.(input_line stdin) with
+  | None -> failwith "no value entered. aborting."
+  | Some line -> of_string line
+
+let add =
+  Command.basic
+    ~summary:"Add [days] to the [base] date and print day"
+    Command.Let_syntax.(
+      let%map_open
+        base = anon ("base" %: date)
+      and days = anon (maybe ("days" %: int))
+      in
+      let days =
+        match days with
+        | Some x -> x
+        | None -> prompt_for_string "days" Int.of_string
+      in
+      fun () ->
+        add_days base days)
+
+let () = Command.run add
+```
 
 The `days` anonymous argument is now an optional integer in the spec, and
 when it isn't there, we simply prompt for the value as part of the ordinary
@@ -462,7 +910,13 @@ the value isn't provided.
 We can see the prompting behavior if we run the program without providing the
 second argument.
 
-<link rel="import" href="code/command-line-parsing/cal_add_interactive2/cal.sh" />
+```sh
+  $ jbuilder build cal.exe
+  Done: 3/7 (jobs: 1)                   Done: 4/7 (jobs: 1)                   Done: 5/7 (jobs: 1)                   Done: 70/73 (jobs: 1)                     Done: 71/73 (jobs: 1)                     Done: 72/73 (jobs: 1)
+  $ echo 35 | ./_build/default/cal.exe 2013-12-01
+  enter days: 2014-01-05
+
+```
 
 ## Command-Line Autocompletion with bash {#command-line-auto-completion-with-bash}
 
@@ -531,7 +985,12 @@ You don't need to worry about what the preceding output script actually does
 that is). Instead, redirect the output to a file in your current directory
 and source it into your current shell:
 
-<link rel="import" href="code/command-line-parsing/cal_completion.rawsh" />
+```
+$ env COMMAND_OUTPUT_INSTALLATION_BASH=1 ./cal_add_sub_days.native > cal.cmd
+$ . cal.cmd
+$ ./cal_add_sub_days.native <tab>
+add      diff     help     version
+```
 
 Command completion support works for flags and grouped commands and is very
 useful when building larger command-line interfaces. Don't forget to install
@@ -583,5 +1042,4 @@ The `Arg` module
   `getopt`-like interface. It also automates the generation of UNIX man pages
   as part of the specification. Cmdliner is the parser used by OPAM to manage
   its command line.
-
 

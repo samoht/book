@@ -147,8 +147,18 @@ profile). This setting can be overridden via the `s=<words>` argument to
 the `Gc.set` function:
 :::
 
+```ocaml
+open Core_kernel;;
 
-<link rel="import" href="code/gc/tune.mlt" part="0.5" />
+let c = Gc.get () ;;
+:: val c : Gc.control =
+::   {Core_kernel.Gc.Control.minor_heap_size = 262144;
+::    major_heap_increment = 15; space_overhead = 80; verbose = 0;
+::    max_overhead = 500; stack_limit = 1048576; allocation_policy = 0;
+::    window_size = 1}
+Gc.tune ~minor_heap_size:(262144 * 2) () ;;
+:: - : unit = ()
+```
 
 Changing the GC size dynamically will trigger an immediate minor heap
 collection. Note that Core increases the default minor heap size from the
@@ -231,8 +241,10 @@ smaller heap chunks spread across different regions of virtual memory that
 require more housekeeping in the OCaml runtime to keep track of them:
 :::
 
-
-<link rel="import" href="code/gc/tune.mlt" part="1" />
+```ocaml
+Gc.tune ~major_heap_increment:(1000448 * 4) () ;;
+:: - : unit = ()
+```
 
 Allocating an OCaml value on the major heap first checks the free list of
 blocks for a suitable region to place it. If there isn't enough room on the
@@ -366,8 +378,12 @@ value and returns this value so that you can modify it in future calls if
 necessary:
 :::
 
-
-<link rel="import" href="code/gc/tune.mlt" part="2" />
+```ocaml
+Gc.major_slice 0 ;;
+:: - : int = 0
+Gc.full_major () ;;
+:: - : unit = ()
+```
 
 The `space_overhead` setting controls how aggressive the GC is about setting
 the slice size to a large size. This represents the proportion of memory used
@@ -404,8 +420,10 @@ completely. The default settings should be fine unless you have unusual
 allocation patterns that are causing a higher-than-usual rate of compactions:
 :::
 
-
-<link rel="import" href="code/gc/tune.mlt" part="3" />
+```ocaml
+Gc.tune ~max_overhead:0 () ;;
+:: - : unit = ()
+```
 
 ### Intergenerational Pointers {#inter-generational-pointers}
 
@@ -442,14 +460,53 @@ Let's see this for ourselves with a simple test program. You'll need to
 install the Core benchmarking suite via `opam install core_bench` before you
 compile this code:
 
-<link rel="import" href="code/gc/barrier_bench/barrier_bench.ml" />
+```ocaml
+open Core
+open Core_bench
+
+type t1 = { mutable iters1: int; mutable count1: float }
+type t2 = { iters2: int; count2: float }
+
+let rec test_mutable t1 =
+  match t1.iters1 with
+  |0 -> ()
+  |_ ->
+    t1.iters1 <- t1.iters1 - 1;
+    t1.count1 <- t1.count1 +. 1.0;
+    test_mutable t1
+
+let rec test_immutable t2 =
+  match t2.iters2 with
+  |0 -> ()
+  |n ->
+    let iters2 = n - 1 in
+    let count2 = t2.count2 +. 1.0 in
+    test_immutable { iters2; count2 }
+
+let () =
+  let iters = 1000000 in
+  let tests = [
+    Bench.Test.create ~name:"mutable" 
+      (fun () -> test_mutable { iters1=iters; count1=0.0 });
+    Bench.Test.create ~name:"immutable"
+      (fun () -> test_immutable { iters2=iters; count2=0.0 })
+  ] in
+  Bench.make_command tests |> Command.run
+```
 
 This program defines a type `t1` that is mutable and `t2` that is immutable.
 The benchmark loop iterates over both fields and increments a counter.
 Compile and execute this with some extra options to show the amount of
 garbage collection occurring:
 
-<link rel="import" href="code/gc/barrier_bench/jbuild" />
+```
+(executable
+  ((name barrier_bench)
+   (modules barrier_bench)
+   (libraries (core core_bench))
+  )
+)
+```
 
 <link rel="import" href="code/gc/barrier_bench/barrier_bench.sh" part=
 "run" />
@@ -526,13 +583,73 @@ Let's explore this with a small example that finalizes values of different
 types, some of which are heap-allocated and others which are compile-time
 constants:
 
-<link rel="import" href="code/gc/finalizer/finalizer.ml" />
+```ocaml
+open Core
+open Async
+
+let attach_finalizer n v =
+  match Heap_block.create v with
+  | None -> printf "%20s: FAIL\n%!" n
+  | Some hb ->
+    let final _ = printf "%20s: OK\n%!" n in
+    Gc.add_finalizer hb final
+
+type t = { foo: bool }
+
+let main () =
+  let alloced_float = Unix.gettimeofday () in
+  let alloced_bool = alloced_float > 0.0 in
+  let alloced_string = String.create 4 in
+  attach_finalizer "immediate int" 1;
+  attach_finalizer "immediate float" 1.0;
+  attach_finalizer "immediate variant" (`Foo "hello");
+  attach_finalizer "immediate string" "hello world";
+  attach_finalizer "immediate record" { foo=false };
+  attach_finalizer "allocated bool" alloced_bool;
+  attach_finalizer "allocated variant" (`Foo alloced_bool);
+  attach_finalizer "allocated string" alloced_string;
+  attach_finalizer "allocated record" { foo=alloced_bool };
+  Gc.compact ();
+  return ()
+
+let () =
+  Command.async_spec ~summary:"Testing finalizers"
+    Command.Spec.empty main
+  |> Command.run
+```
 
 Building and running this should show the following output:
 
-<link rel="import" href="code/gc/finalizer/jbuild" />
+```
+(executable
+  ((name finalizer)
+   (modules finalizer)
+   (libraries (core async))
+  )
+)
+```
 
-<link rel="import" href="code/gc/finalizer/run_finalizer.sh" />
+
+
+```sh
+  $ jbuilder build finalizer.exe
+        ocamlc .finalizer.eobjs/finalizer.{cmi,cmo,cmt}
+  File "finalizer.ml", line 16, characters 23-36:
+  Warning 3: deprecated: Core.String.create
+  [since 2017-10] Use [Bytes.create] instead
+      ocamlopt .finalizer.eobjs/finalizer.{cmx,o}
+  File "finalizer.ml", line 16, characters 23-36:
+  Warning 3: deprecated: Core.String.create
+  [since 2017-10] Use [Bytes.create] instead
+  $ ./_build/default/finalizer.exe
+         immediate int: FAIL
+       immediate float: FAIL
+        allocated bool: FAIL
+      allocated record: OK
+      allocated string: OK
+     allocated variant: OK
+
+```
 
 The GC calls the finalization functions in the order of the deallocation. If
 several values become unreachable during the same GC cycle, the finalization
@@ -552,5 +669,4 @@ The finalizer can use all features of OCaml, including assignments that make
 the value reachable again and thus prevent it from being garbage-collected.
 It can also loop forever, which will cause other finalizers to be interleaved
 with it.
-
 

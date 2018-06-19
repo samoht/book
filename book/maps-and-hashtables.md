@@ -7,11 +7,30 @@ example, you could represent a mapping between the 10 digits and their
 English names as follows: [key/value pairs]{.idx}[data structures/key/value
 pairs]{.idx}[lists/association lists]{.idx}[association lists]{.idx}
 
-<link rel="import" href="code/maps-and-hash-tables/main.mlt" part="1" />
+```ocaml
+open Base;;
+
+let digit_alist =
+  [ 0, "zero"; 1, "one"; 2, "two"  ; 3, "three"; 4, "four"
+  ; 5, "five"; 6, "six"; 7, "seven"; 8, "eight"; 9, "nine" ]
+;;
+:: val digit_alist : (int * string) list =
+::   [(0, "zero"); (1, "one"); (2, "two"); (3, "three"); (4, "four");
+::    (5, "five"); (6, "six"); (7, "seven"); (8, "eight"); (9, "nine")]
+```
 
 We can use functions from the `List.Assoc` module to manipulate this data:
 
-<link rel="import" href="code/maps-and-hash-tables/main.mlt" part="2" />
+```ocaml
+List.Assoc.find ~equal:Int.equal digit_alist 6;;
+:: - : string option = Some "six"
+List.Assoc.find ~equal:Int.equal digit_alist 22;;
+:: - : string option = None
+List.Assoc.add ~equal:Int.equal digit_alist 0 "zilch";;
+:: - : (int, string) Base__List.Assoc.t =
+:: [(0, "zilch"); (1, "one"); (2, "two"); (3, "three"); (4, "four");
+::  (5, "five"); (6, "six"); (7, "seven"); (8, "eight"); (9, "nine")]
+```
 
 Association lists are simple and easy to use, but their performance is not
 ideal, since almost every nontrivial operation on an association list
@@ -32,7 +51,23 @@ Let's consider an example of how one might use a map in practice. In
 we showed a module `Counter` for keeping frequency counts on a set of
 strings. Here's the interface:
 
-<link rel="import" href="code/files-modules-and-programs/freq-fast/counter.mli" />
+```ocaml
+open Base
+
+(** A collection of string frequency counts *)
+type t
+
+(** The empty set of frequency counts  *)
+val empty : t
+
+(** Bump the frequency count for the given string. *)
+val touch : t -> string -> t
+
+(** Converts the set of frequency counts to an association list.
+    Every string in the list will show up at most once, and the
+    integers will be at least 1. *)
+val to_list : t -> (string * int) list
+```
 
 The intended behavior here is straightforward. `Counter.empty` represents an
 empty collection of frequency counts; `touch` increments the frequency count
@@ -41,7 +76,23 @@ frequencies.
 
 Here's the implementation.
 
-<link rel="import" href="code/files-modules-and-programs/freq-fast/counter.ml" />
+```ocaml
+open Base
+
+type t = (string,int,String.comparator_witness) Map.t
+
+let empty = Map.empty (module String)
+
+let to_list t = Map.to_alist t
+
+let touch t s =
+  let count =
+    match Map.find t s with
+    | None -> 0
+    | Some x -> x
+  in
+  Map.set t ~key:s ~data:(count + 1)
+```
 
 Take a look at the definition of the type `t` above. You'll see that the
 `Map.t` has three type parameter. The first two are what you might expect;
@@ -77,7 +128,15 @@ ignore the data. But while you could encode sets in terms of maps, it's more
 natural, and more efficient, to use `Base`'s specialized set type. Here's a
 simple example. [set types]{.idx}
 
-<link rel="import" href="code/maps-and-hash-tables/main.mlt" part="17" />
+```ocaml
+Set.of_list (module Int) [1;2;3] |> Set.to_list;;
+:: - : int list = [1; 2; 3]
+Set.union
+  (Set.of_list (module Int) [1;2;3;2])
+  (Set.of_list (module Int) [3;5;1])
+|> Set.to_list;;
+:: - : int list = [1; 2; 3; 5]
+```
 
 In addition to the operators you would expect to have for maps, sets support
 the traditional set operations, including union, intersection, and set
@@ -90,19 +149,36 @@ It's easy enough to create a map or set based on a type represented by a
 module in `Base`. Here, we'll create a map from digits to their English
 names, based on `digit_alist`, which was defined earlier in the chapter.
 
-<link rel="import" href="code/maps-and-hash-tables/main.mlt" part="mc.1" />
+```ocaml
+let digit_map = Map.of_alist_exn (module Int) digit_alist;;
+:: val digit_map : (int, string, Int.comparator_witness) Map.t = <abstr>
+Map.find digit_map 3;;
+:: - : string option = Some "three"
+```
 
 The function `Map.of_alist_exn` constructs a map from a provided association
 list, throwing an exception if a key is used more than once. Let's take a
 look at the type signature of `Map.of_alist_exn`.
 
-<link rel="import" href="code/maps-and-hash-tables/main.mlt" part="mc.2" />
+```ocaml
+Map.of_alist_exn;;
+:: - : ('a, 'cmp) Map.comparator -> ('a * 'b) list -> ('a, 'b, 'cmp) Map.t =
+:: <fun>
+```
 
 The type `Map.comparator` is actually an alias for a first-class module type,
 representing any module that matches the signature `Comparator.S`, shown
 below.
 
-<link rel="import" href="code/maps-and-hash-tables/main.mlt" part="mc.2.1" />
+```ocaml
+#typeof "Comparator.S";;
+:: module type Base.Comparator.S =
+::   sig
+::     type t
+::     type comparator_witness
+::     val comparator : (t, comparator_witness) Base.Comparator.t
+::   end
+```
 
 Such a module needs to contain the type of the key itself, as well as the
 `comparator_witness` type, which serves as a type-level identifier of the
@@ -114,13 +190,43 @@ But what if you want to satisfy this interface with a new module? Consider,
 for example, the following type representing a book, for which we've written
 a comparison function and an s-expression serializer.
 
-<link rel="import" href="code/maps-and-hash-tables/main.mlt" part="mc.2.2" />
+```ocaml
+module Book = struct
+
+  type t = { title: string; isbn: string }
+
+  let compare t1 t2 =
+    let cmp_title = String.compare t1.title t2.title in
+    if cmp_title <> 0 then cmp_title
+    else String.compare t1.isbn t2.isbn
+
+  let sexp_of_t t : Sexp.t =
+    List [ Atom t.title; Atom t.isbn ]
+end;;
+:: module Book :
+::   sig
+::     type t = { title : string; isbn : string; }
+::     val compare : t -> t -> int
+::     val sexp_of_t : t -> Sexp.t
+::   end
+```
 
 This module has the basic functionality we need, but doesn't satisfy the
 `Comparator.S` interface, so we can't use it for creating a map, as you can
 see.
 
-<link rel="import" href="code/maps-and-hash-tables/main.mlt" part="mc.2.3" />
+```ocaml
+Map.empty (module Book);;
+1> Characters 18-22:
+1> Error: Signature mismatch:
+1>        ...
+1>        The value `comparator' is required but not provided
+1>        File "src/comparator.mli", line 21, characters 2-53:
+1>          Expected declaration
+1>        The type `comparator_witness' is required but not provided
+1>        File "src/comparator.mli", line 20, characters 2-25:
+1>          Expected declaration
+```
 
 In order to satisfy the interface, we need to use the `Comparator.Make`
 functor to extend the module. Here, we use a common idiom where we create a
@@ -128,11 +234,54 @@ submodule, called `T` containing the basic functionality for the type in
 question, and then include both that module and the result of applying a
 functor to that module.
 
-<link rel="import" href="code/maps-and-hash-tables/main.mlt" part="mc.2.4" />
+```ocaml
+module Book = struct
+  module T = struct
+
+    type t = { title: string; isbn: string }
+
+    let compare t1 t2 =
+      let cmp_title = String.compare t1.title t2.title in
+      if cmp_title <> 0 then cmp_title
+      else String.compare t1.isbn t2.isbn
+
+    let sexp_of_t t : Sexp.t =
+      List [ Atom t.title; Atom t.isbn ]
+
+  end
+  include T
+  include Comparator.Make(T)
+end;;
+:: module Book :
+::   sig
+::     module T :
+::       sig
+::         type t = { title : string; isbn : string; }
+::         val compare : t -> t -> int
+::         val sexp_of_t : t -> Sexp.t
+::       end
+::     type t = T.t = { title : string; isbn : string; }
+::     val compare : t -> t -> int
+::     val sexp_of_t : t -> Sexp.t
+::     type comparator_witness = Base__Comparator.Make(T).comparator_witness
+::     val comparator : (t, comparator_witness) Comparator.t
+::   end
+```
 
 With this module in hand, we can now build a set using the type `Book.t`.
 
-<link rel="import" href="code/maps-and-hash-tables/main.mlt" part="mc.2.5" />
+```ocaml
+let some_programming_books =
+  Set.of_list (module Book)
+    [ { title = "Real World OCaml"
+      ; isbn = "978-1449323912" }
+    ; { title = "Structure and Interpretation of Computer Programs"
+      ; isbn = "978-0262510875" }
+    ; { title = "The C Programming Language"
+      ; isbn = "978-0131101630" } ];;
+:: val some_programming_books : (Book.t, Book.comparator_witness) Set.t =
+::   <abstr>
+```
 
 ### Why do we need comparator witnesses? {#why-comparator-witnesses}
 
@@ -146,13 +295,28 @@ different maps are using the same comparison function.
 Consider, for example, `Map.symmetric_diff`, which computes the difference
 between two maps.
 
-<link rel="import" href="code/maps-and-hash-tables/main.mlt" part="mc.3" />
+```ocaml
+let left = Map.of_alist_exn (module String) ["foo",1; "bar",3; "snoo",0];;
+:: val left : (string, int, String.comparator_witness) Map.t = <abstr>
+let right = Map.of_alist_exn (module String) ["foo",0; "snoo",0];;
+:: val right : (string, int, String.comparator_witness) Map.t = <abstr>
+Map.symmetric_diff ~data_equal:Int.equal left right |> Sequence.to_list;;
+:: - : (string, int) Map.Symmetric_diff_element.t list =
+:: [("bar", `Left 3); ("foo", `Unequal (1, 0))]
+```
 
 The type of `Map.symmetric_diff`, which follows, requires that the two maps
 it compares have the same comparator type, and therefore the same comparison
 function.
 
-<link rel="import" href="code/maps-and-hash-tables/main.mlt" part="mc.4" />
+```ocaml
+Map.symmetric_diff;;
+:: - : ('k, 'v, 'cmp) Map.t ->
+::     ('k, 'v, 'cmp) Map.t ->
+::     data_equal:('v -> 'v -> bool) ->
+::     ('k, 'v) Map.Symmetric_diff_element.t Sequence.t
+:: = <fun>
+```
 
 Without this constraint, we could run `Map.symmetric_diff` on maps that are
 sorted in different orders, which could lead to garbled results. We can show
@@ -161,25 +325,73 @@ types, but different comparison functions. In the following, we do this by
 minting a new module `Reverse`, which represents strings sorted in the
 reverse of the usual lexicographic order.
 
-<link rel="import" href="code/maps-and-hash-tables/main.mlt" part="mc.5" />
+```ocaml
+module Reverse = struct
+  module T = struct
+    type t = string
+    let sexp_of_t = String.sexp_of_t
+    let t_of_sexp = String.t_of_sexp
+    let compare x y = String.compare y x
+  end
+  include T
+  include Comparator.Make(T)
+end;;
+:: module Reverse :
+::   sig
+::     module T :
+::       sig
+::         type t = string
+::         val sexp_of_t : t -> Sexp.t
+::         val t_of_sexp : Sexp.t -> t
+::         val compare : t -> t -> int
+::       end
+::     type t = string
+::     val sexp_of_t : t -> Sexp.t
+::     val t_of_sexp : Sexp.t -> t
+::     val compare : t -> t -> int
+::     type comparator_witness = Base__Comparator.Make(T).comparator_witness
+::     val comparator : (t, comparator_witness) Comparator.t
+::   end
+```
 
 As you can see in the following, both `Reverse` and `String` can be used to
 create maps with a key type of `string`:
 
-<link rel="import" href="code/maps-and-hash-tables/main.mlt" part="mc.6" />
+```ocaml
+let alist = ["foo", 0; "snoo", 3];;
+:: val alist : (string * int) list = [("foo", 0); ("snoo", 3)]
+let ord_map = Map.of_alist_exn (module String) alist;;
+:: val ord_map : (string, int, String.comparator_witness) Map.t = <abstr>
+let rev_map = Map.of_alist_exn (module Reverse) alist;;
+:: val rev_map : (string, int, Reverse.comparator_witness) Map.t = <abstr>
+```
 
 `Map.min_elt` returns the key and value for the smallest key in the map,
 which confirms that these two maps do indeed use different comparison
 functions.
 
-<link rel="import" href="code/maps-and-hash-tables/main.mlt" part="mc.7" />
+```ocaml
+Map.min_elt ord_map;;
+:: - : (string * int) option = Some ("foo", 0)
+Map.min_elt rev_map;;
+:: - : (string * int) option = Some ("snoo", 3)
+```
 
 As such, running `Map.symmetric_diff` on these maps doesn't make any sense.
 Happily, the type system will give us a compile-time error if we try, instead
 of throwing an error at run time, or worse, silently returning the wrong
 result.
 
-<link rel="import" href="code/maps-and-hash-tables/main.mlt" part="mc.8" />
+```ocaml
+Map.symmetric_diff ord_map rev_map;;
+1> Characters 27-34:
+1> Error: This expression has type
+1>          (string, int, Reverse.comparator_witness) Map.t
+1>        but an expression was expected of type
+1>          (string, int, String.comparator_witness) Map.t
+1>        Type Reverse.comparator_witness is not compatible with type
+1>          String.comparator_witness
+```
 
 ### The Polymorphic Comparator {#the-polymorphic-comparator}
 
@@ -191,13 +403,27 @@ polymorphic comparison function, which was discussed in
 polymorphic compare, but `Core_kernel` does, as we can see below.
 [maps/polymorphic comparison in]{.idx}[polymorphic comparisons]{.idx}
 
-<link rel="import" href="code/maps-and-hash-tables/main.mlt" part="pc.1" />
+```ocaml
+Map.Poly.of_alist_exn digit_alist;;
+:: - : (int, string) Map.Poly.t = <abstr>
+```
 
 Note that maps based on the polymorphic comparator have different comparator
 witnesses than those based on the type-specific comparison function. Thus,
 the compiler rejects the following:
 
-<link rel="import" href="code/maps-and-hash-tables/main.mlt" part="pc.2" />
+```ocaml
+Map.symmetric_diff
+  (Map.Poly.singleton 3 "three")
+  (Map.singleton (module Int) 3 "four" )
+;;
+1> Characters 54-92:
+1> Error: This expression has type (int, string, Int.comparator_witness) Map.t
+1>        but an expression was expected of type
+1>          (int, string, Comparator.Poly.comparator_witness) Map.t
+1>        Type Int.comparator_witness is not compatible with type
+1>          Comparator.Poly.comparator_witness
+```
 
 This is rejected for good reason: there's no guarantee that the comparator
 associated with a given type will order things in the same way that
@@ -226,12 +452,20 @@ the OCaml heap and functions, it works on almost every OCaml type.
 But sometimes, a structural comparison is not what you want. Maps are
 actually a fine example of this. Consider the following two maps.
 
-<link rel="import" href="code/maps-and-hash-tables/main.mlt" part="ppc.1" />
+```ocaml
+let m1 = Map.of_alist_exn (module Int) [1, "one";2, "two"];;
+:: val m1 : (int, string, Int.comparator_witness) Map.t = <abstr>
+let m2 = Map.of_alist_exn (module Int) [2, "two";1, "one"];;
+:: val m2 : (int, string, Int.comparator_witness) Map.t = <abstr>
+```
 
 Logically, these two sets should be equal, and that's the result that you get
 if you call `Map.equal` on them:
 
-<link rel="import" href="code/maps-and-hash-tables/main.mlt" part="ppc.2" />
+```ocaml
+Map.equal String.equal m1 m2;;
+:: - : bool = true
+```
 
 But because the elements were added in different orders, the layout of the
 trees underlying the sets will be different. As such, a structural comparison
@@ -243,14 +477,21 @@ opening the `Poly` module, at which point `=` is bound to polymorphic
 equality. Comparing the maps directly will fail at runtime because the
 comparators stored within the sets contain function values:
 
-<link rel="import" href="code/maps-and-hash-tables/main.mlt" part="ppc.3" />
+```ocaml
+Poly.(m1 = m2);;
+1> Exception: (Invalid_argument "compare: functional value").
+```
 
 We can, however, use the function `Map.Using_comparator.to_tree` to expose
 the underlying binary tree without the attached comparator. This same issue
 comes up with other data types, including sets, which we'll discuss later in
 the chapter.
 
-<link rel="import" href="code/maps-and-hash-tables/main.mlt" part="ppc.4" />
+```ocaml
+Poly.((Map.Using_comparator.to_tree m1) =
+      (Map.Using_comparator.to_tree m2));;
+:: - : bool = false
+```
 
 This can cause real and quite subtle bugs. If, for example, you use a map
 whose keys contain sets, then the map built with the polymorphic comparator
@@ -272,7 +513,39 @@ set of syntax extensions that automate these tasks away.
 Let's return to an example from earlier in the chapter, where we created a
 type `Book.t` and set it up for use in creating maps and sets.
 
-<link rel="import" href="code/maps-and-hash-tables/main.mlt" part="mc.2.4" />
+```ocaml
+module Book = struct
+  module T = struct
+
+    type t = { title: string; isbn: string }
+
+    let compare t1 t2 =
+      let cmp_title = String.compare t1.title t2.title in
+      if cmp_title <> 0 then cmp_title
+      else String.compare t1.isbn t2.isbn
+
+    let sexp_of_t t : Sexp.t =
+      List [ Atom t.title; Atom t.isbn ]
+
+  end
+  include T
+  include Comparator.Make(T)
+end;;
+:: module Book :
+::   sig
+::     module T :
+::       sig
+::         type t = { title : string; isbn : string; }
+::         val compare : t -> t -> int
+::         val sexp_of_t : t -> Sexp.t
+::       end
+::     type t = T.t = { title : string; isbn : string; }
+::     val compare : t -> t -> int
+::     val sexp_of_t : t -> Sexp.t
+::     type comparator_witness = Base__Comparator.Make(T).comparator_witness
+::     val comparator : (t, comparator_witness) Comparator.t
+::   end
+```
 
 Much of the code here is devoted to creating a comparison function and
 s-expression converter for the type `Book.t`. But if we have the
@@ -280,7 +553,30 @@ ppx_sexp_conv and ppx_compare syntax extensions enabled (both of which come
 with the omnibus ppx_jane package), then we can request that default
 implementations of these functions be created, as follows.
 
-<link rel="import" href="code/maps-and-hash-tables/main.mlt" part="ud.1" />
+```ocaml
+module Book = struct
+  module T = struct
+    type t = { title: string; isbn: string }
+    [@@deriving compare, sexp_of]
+  end
+  include T
+  include Comparator.Make(T)
+end;;
+:: module Book :
+::   sig
+::     module T :
+::       sig
+::         type t = { title : string; isbn : string; }
+::         val compare : t -> t -> int
+::         val sexp_of_t : t -> Sexp.t
+::       end
+::     type t = T.t = { title : string; isbn : string; }
+::     val compare : t -> t -> int
+::     val sexp_of_t : t -> Sexp.t
+::     type comparator_witness = Base__Comparator.Make(T).comparator_witness
+::     val comparator : (t, comparator_witness) Comparator.t
+::   end
+```
 
 If you want your comparison function that orders things in a particular way,
 you can always write your own comparison function by hand; but if all you
@@ -316,7 +612,19 @@ You'll see a warning if you use `==` anywhere in code that opens
 If you feel like hanging your OCaml interpreter, you can verify what happens
 with recursive values and structural equality for yourself:
 
-<link rel="import" href="code/maps-and-hash-tables/phys_equal.rawscript" />
+```ocaml
+# type t1 = { foo1:int; bar1:t2 } and t2 = { foo2:int; bar2:t1 } ;;
+type t1 = { foo1 : int; bar1 : t2; }
+and t2 = { foo2 : int; bar2 : t1; }
+# let rec v1 = { foo1=1; bar1=v2 } and v2 = { foo2=2; bar2=v1 } ;;
+<lots of text>
+# v1 == v1;;
+- : bool = true
+# phys_equal v1 v1;;
+- : bool = true
+# v1 = v1 ;;
+<press ^Z and kill the process now>
+```
 
 </aside>
 
@@ -326,7 +634,14 @@ In the previous section, we showed how to use `[@@deriving]` annotations to
 set up a type so it could be used to create a map or set type. But what if we
 want to put a `[@@deriving]` annotation on a map or set type itself?
 
-<link rel="import" href="code/maps-and-hash-tables/main.mlt" part="adm.1" />
+```ocaml
+type string_int_map =
+  (string,int,String.comparator_witness) Map.t
+[@@deriving sexp];;
+1> Characters 63-68:
+1> Error: Unbound value Map.t_of_sexp
+1> Hint: Did you mean m__t_of_sexp?
+```
 
 This fails because there is no existing `Map.t_of_sexp`. This isn't a simple
 omission; there's no reasonable way to define a useful `Map.t_of_sexp`,
@@ -336,13 +651,25 @@ s-expression.
 Happily, there's another way of writing the type of a map that does work with
 the various `[@@deriving]` extensions, which you can see below.
 
-<link rel="import" href="code/maps-and-hash-tables/main.mlt" part="adm.2" />
+```ocaml
+type string_int_map =
+  int Map.M(String).t
+[@@deriving sexp];;
+:: type string_int_map = int Base.Map.M(Base.String).t
+:: val string_int_map_of_sexp : Sexp.t -> string_int_map = <fun>
+:: val sexp_of_string_int_map : string_int_map -> Sexp.t = <fun>
+```
 
 Here, we use a functor, `Map.M`, to define the type we need. While this looks
 different than the ordinary type signature, the meaning of the type is the
 same, as we can see below.
 
-<link rel="import" href="code/maps-and-hash-tables/main.mlt" part="adm.3" />
+```ocaml
+let m = Map.singleton (module String) "one" 1;;
+:: val m : (string, int, String.comparator_witness) Map.t = <abstr>
+(m : int Map.M(String).t);;
+:: - : int Base.Map.M(Base.String).t = <abstr>
+```
 
 This same type works well with other derivers, like those for comparison and
 hash functions. Since this way of writing the type is also shorter, it's what
@@ -357,7 +684,12 @@ a representation with `Map.Using_comparator.to_tree`, which returns just the
 tree underlying the map, without the comparator. [Map
 module/Map.to_tree]{.idx}[maps/tree structure]{.idx}
 
-<link rel="import" href="code/maps-and-hash-tables/main.mlt" part="11" />
+```ocaml
+let ord_tree = Map.Using_comparator.to_tree ord_map;;
+:: val ord_tree :
+::   (string, int, String.comparator_witness) Map.Using_comparator.Tree.t =
+::   <abstr>
+```
 
 Even though the tree doesn't physically include a comparator, it does include
 the comparator in its type. This is what is known as a *phantom type*,
@@ -368,15 +700,27 @@ underlying physical structure of the value.
 Since the comparator isn't included in the tree, we need to provide the
 comparator explicitly when we, say, search for a key, as shown below:
 
-<link rel="import" href="code/maps-and-hash-tables/main.mlt" part="12" />
+```ocaml
+Map.Using_comparator.Tree.find ~comparator:String.comparator ord_tree "snoo";;
+:: - : int option = Some 3
+```
 
 The algorithm of `Map.Tree.find` depends on the fact that it's using the same
 comparator when looking up a value as you were when you stored it. That's the
 invariant that the phantom type is there to enforce. As you can see in the
 following example, using the wrong comparator will lead to a type error:
 
-<link rel="import" href="code/maps-and-hash-tables/main.mlt" part="13" />
-
+```ocaml
+Map.Using_comparator.Tree.find ~comparator:Reverse.comparator ord_tree "snoo";;
+1> Characters 62-70:
+1> Error: This expression has type
+1>          (string, int, String.comparator_witness) Map.Using_comparator.Tree.t
+1>        but an expression was expected of type
+1>          (string, int, Reverse.comparator_witness)
+1>          Map.Using_comparator.Tree.t
+1>        Type String.comparator_witness is not compatible with type
+1>          Reverse.comparator_witness
+```
 
 ## Hash Tables {#hash-tables}
 
@@ -434,14 +778,30 @@ We create a hashtable in a way that's similar to how we create maps, by
 providing a first-class module from which the required operations for
 building a hashtable can be obtained.
 
-<link rel="import" href="code/maps-and-hash-tables/main.mlt" part="ht.1" />
+```ocaml
+let table = Hashtbl.create (module String);;
+:: val table : (string, '_weak1) Hashtbl.t = <abstr>
+Hashtbl.set table ~key:"three" ~data:3;;
+:: - : unit = ()
+Hashtbl.find table "three";;
+:: - : int option = Some 3
+```
 
 As with maps, most modules in Base are ready to be used for this purpose, but
 if you want to create a hash table from one of your own types, you need to do
 some work to prepare it. In order for a module to be suitable for passing to
 `Hashtbl.create`, it has to match the following interface.
 
-<link rel="import" href="code/maps-and-hash-tables/main.mlt" part="ht.2" />
+```ocaml
+#typeof "Hashtbl_intf.Key";;
+:: module type Base.Hashtbl_intf.Key =
+::   sig
+::     type t
+::     val compare : t -> t -> Base.int
+::     val sexp_of_t : t -> Base.Sexp.t
+::     val hash : t -> Base.int
+::   end
+```
 
 Note that there's no equivalent to the comparator witness that came up for
 maps and sets. That's because the requirement for multiple objects to share a
@@ -449,12 +809,34 @@ comparison function or a hash function mostly just doesn't come up for hash
 tables. That makes building a module suitable for use with a hash table
 simpler.
 
-<link rel="import" href="code/maps-and-hash-tables/main.mlt" part="ht.3" />
+```ocaml
+module Book = struct
+  type t = { title: string; isbn: string }
+  [@@deriving compare, sexp_of, hash]
+end;;
+:: module Book :
+::   sig
+::     type t = { title : string; isbn : string; }
+::     val compare : t -> t -> int
+::     val sexp_of_t : t -> Sexp.t
+::     val hash_fold_t : Hash.state -> t -> Hash.state
+::     val hash : t -> int
+::   end
+let table = Hashtbl.create (module Book);;
+:: val table : (Book.t, '_weak2) Hashtbl.t = <abstr>
+```
 
 You can also create a hashtable based on OCaml's polymorphic hash and
 comparison functions.
 
-<link rel="import" href="code/maps-and-hash-tables/main.mlt" part="ht.4" />
+```ocaml
+let table = Hashtbl.Poly.create ();;
+:: val table : ('_weak3, '_weak4) Hashtbl.t = <abstr>
+Hashtbl.set table ~key:("foo",3,[1;2;3]) ~data:"random data!";;
+:: - : unit = ()
+Hashtbl.find table ("foo",3,[1;2;3]);;
+:: - : string option = Some "random data!"
+```
 
 This is highly convenient, but polymorphic comparison can behave in
 surprising ways, so it's generally best to avoid this for code where
@@ -483,7 +865,16 @@ the data structure, and this can lead to pathological
 same hash value. We'll demonstrate this below, using the function
 `List.range` to allocate lists of integers of different length:
 
-<link rel="import" href="code/maps-and-hash-tables/main.mlt" part="ph.1" />
+```ocaml
+Hashtbl.Poly.hashable.hash (List.range 0 9);;
+:: - : int = 209331808
+Hashtbl.Poly.hashable.hash (List.range 0 10);;
+:: - : int = 182325193
+Hashtbl.Poly.hashable.hash (List.range 0 11);;
+:: - : int = 182325193
+Hashtbl.Poly.hashable.hash (List.range 0 100);;
+:: - : int = 182325193
+```
 
 As you can see, the hash function stops after the first 10 elements. The same
 can happen with any large data structure, including records and arrays. When
@@ -491,7 +882,16 @@ building hash functions over large custom data structures, it is generally a
 good idea to write one's own hash function, or to use the ones provided by
 `[@@deriving]`, which don't have this problem, as you can see below.
 
-<link rel="import" href="code/maps-and-hash-tables/main.mlt" part="ph.2" />
+```ocaml
+[%hash: int list] (List.range 0 9);;
+:: - : int = 999007935
+[%hash: int list] (List.range 0 10);;
+:: - : int = 195154657
+[%hash: int list] (List.range 0 11);;
+:: - : int = 527899773
+[%hash: int list] (List.range 0 100);;
+:: - : int = 594983280
+```
 
 Note that rather than declaring a type and using `[@@deriving hash]` to
 invoke ppx_hash, we use `[%%hash]`, a shorthand for creating a hash function
@@ -521,14 +921,69 @@ the keys and updating the values they contain. Note that we use the
 `Map.change` and `Hashtbl.change` functions to update the respective data
 structures:
 
-<link rel="import" href="code/maps-and-hash-tables/map_vs_hash/map_vs_hash.ml" />
+```ocaml
+open Base
+open Core_bench
+
+let map_iter ~num_keys ~iterations =
+  let rec loop i map =
+    if i <= 0 then ()
+    else loop (i - 1)
+           (Map.change map (i % num_keys) ~f:(fun current ->
+              Some (1 + Option.value ~default:0 current)))
+  in
+  loop iterations (Map.empty (module Int))
+
+let table_iter ~num_keys ~iterations =
+  let table = Hashtbl.create (module Int) ~size:num_keys in
+  let rec loop i =
+    if i <= 0 then ()
+    else (
+      Hashtbl.change table (i % num_keys) ~f:(fun current ->
+        Some (1 + Option.value ~default:0 current));
+      loop (i - 1)
+    )
+  in
+  loop iterations
+
+let tests ~num_keys ~iterations =
+  let test name f = Bench.Test.create f ~name in
+  [ test "table" (fun () -> table_iter ~num_keys ~iterations)
+  ; test "map"   (fun () -> map_iter   ~num_keys ~iterations)
+  ]
+
+let () =
+  tests ~num_keys:1000 ~iterations:100_000
+  |> Bench.make_command
+  |> Core.Command.run
+```
 
 The results show the hash table version to be around four times faster than
 the map version:
 
-<link rel="import" href="code/maps-and-hash-tables/map_vs_hash/jbuild" />
+```
+(executable
+  ((name map_vs_hash)
+   (libraries (base core_bench))
+  ))
+```
 
-<link rel="import" href="code/maps-and-hash-tables/map_vs_hash/run_map_vs_hash.sh" />
+
+
+```sh
+  $ jbuilder build map_vs_hash.exe
+  Done: 3/5 (jobs: 1)                   Done: 74/77 (jobs: 1)                     Done: 75/77 (jobs: 1)                     Done: 76/77 (jobs: 1)                     
+%% --non-deterministic [skip]
+  $ ./_build/default/map_vs_hash.exe -ascii -quota 1 -clear-columns time speedup
+  Estimated testing time 2s (2 benchmarks x 1s). Change using -quota SECS.
+                                
+    Name    Time/Run   Speedup  
+   ------- ---------- --------- 
+    table    13.34ms      1.00  
+    map      44.54ms      3.34  
+                                
+
+```
 
 We can make the speedup smaller or larger depending on the details of the
 test; for example, it will vary with the number of distinct keys. But
@@ -550,14 +1005,74 @@ keeping these copies around. In the map case, this is done by using
 are done using `Hashtbl.change`, but we also need to call `Hashtbl.copy` to
 take snapshots of the table:
 
-<link rel="import" href="code/maps-and-hash-tables/map_vs_hash2/map_vs_hash2.ml" />
+```ocaml
+open Base
+open Core_bench
+
+let create_maps ~num_keys ~iterations =
+  let rec loop i map =
+    if i <= 0 then []
+    else
+      let new_map =
+        Map.change map (i % num_keys) ~f:(fun current ->
+          Some (1 + Option.value ~default:0 current))
+      in
+      new_map :: loop (i - 1) new_map
+  in
+  loop iterations (Map.empty (module Int))
+
+let create_tables ~num_keys ~iterations =
+  let table = Hashtbl.create (module Int) ~size:num_keys in
+  let rec loop i =
+    if i <= 0 then []
+    else (
+      Hashtbl.change table (i % num_keys) ~f:(fun current ->
+        Some (1 + Option.value ~default:0 current));
+      let new_table = Hashtbl.copy table in
+      new_table :: loop (i - 1)
+    )
+  in
+  loop iterations
+
+let tests ~num_keys ~iterations =
+  let test name f = Bench.Test.create f ~name in
+  [ test "table" (fun () -> ignore (create_tables ~num_keys ~iterations))
+  ; test "map"   (fun () -> ignore (create_maps   ~num_keys ~iterations))
+  ]
+
+let () =
+  tests ~num_keys:50 ~iterations:1000
+  |> Bench.make_command
+  |> Core.Command.run
+```
 
 Unsurprisingly, maps perform far better than hash tables on this benchmark,
 in this case by more than a factor of 10:
 
-<link rel="import" href="code/maps-and-hash-tables/map_vs_hash2/jbuild" />
+```
+(executable
+  ((name map_vs_hash2)
+   (libraries (core_bench))
+  )
+)
+```
 
-<link rel="import" href="code/maps-and-hash-tables/map_vs_hash2/run_map_vs_hash2.sh" />
+
+
+```sh
+  $ jbuilder build map_vs_hash2.exe
+  Done: 3/5 (jobs: 1)                   Done: 74/77 (jobs: 1)                     Done: 75/77 (jobs: 1)                     Done: 76/77 (jobs: 1)                     
+%% --non-deterministic [skip]
+  $ ./_build/default/map_vs_hash2.exe -ascii -clear-columns time speedup
+  Estimated testing time 20s (2 benchmarks x 10s). Change using -quota SECS.
+                                  
+    Name      Time/Run   Speedup  
+   ------- ------------ --------- 
+    table   4_453.95us     25.80  
+    map       172.61us      1.00  
+                                  
+
+```
 
 These numbers can be made more extreme by increasing the size of the tables
 or the length of the list.
@@ -568,5 +1083,4 @@ structure or the other will depend on the details of the application.
 [phys_equal function]{.idx}[equal equal (= =) operator]{.idx}[equal (=)
 operator]{.idx}[structural equality]{.idx}[physical equality]{.idx}[equality,
 tests of]{.idx}
-
 

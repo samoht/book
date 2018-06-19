@@ -70,7 +70,12 @@ words in RAM) to represent values such as tuples, records, closures, or
 arrays. An OCaml program implicitly allocates a block of memory when such a
 value is created: [blocks (of memory)]{.idx #blck}
 
-<link rel="import" href="code/memory-repr/simple_record.mlt" part="1" />
+```ocaml
+type t = { foo: int; bar: int } ;;
+:: type t = { foo : int; bar : int; }
+let x = { foo = 13; bar = 14 } ;;
+:: val x : t = {foo = 13; bar = 14}
+```
 
 The type declaration `t` doesn't take up any memory at runtime, but the
 subsequent `let` binding allocates a new block of memory with two words of
@@ -252,7 +257,12 @@ You can check the difference between a block and a direct integer yourself
 using the `Obj` module, which exposes the internal representation of values
 to OCaml code:
 
-<link rel="import" href="code/memory-repr/reprs.mlt" part="0.5" />
+```ocaml
+Obj.is_block (Obj.repr (1,2,3)) ;;
+:: - : bool = true
+Obj.is_block (Obj.repr 1) ;;
+:: - : bool = false
+```
 
 The `Obj.repr` function retrieves the runtime representation of any OCaml
 value. `Obj.is_block` checks the bottom bit to determine if the value is a
@@ -266,7 +276,12 @@ field that contains the number. This block has the `Double_tag` set, which
 signals to the collector that the floating-point value is not to be scanned:
 [floating-point values]{.idx}
 
-<link rel="import" href="code/memory-repr/reprs.mlt" part="1" />
+```ocaml
+Obj.tag (Obj.repr 1.0) ;;
+:: - : int = 253
+Obj.double_tag ;;
+:: - : int = 253
+```
 
 Since each floating-point value is boxed in a separate memory block, it can
 be inefficient to handle large arrays of floats in comparison to unboxed
@@ -283,14 +298,28 @@ the collector that the contents are not OCaml values.
 First, let's check that float arrays do in fact have a different tag number
 from normal floating-point values:
 
-<link rel="import" href="code/memory-repr/reprs.mlt" part="2" />
+```ocaml
+Obj.double_tag ;;
+:: - : int = 253
+Obj.double_array_tag ;;
+:: - : int = 254
+```
 
 This tells us that float arrays have a tag value of 254. Now let's test some
 sample values using the `Obj.tag` function to check that the allocated block
 has the expected runtime tag, and also use `Obj.double_field` to retrieve a
 float from within the block:
 
-<link rel="import" href="code/memory-repr/reprs.mlt" part="3" />
+```ocaml
+Obj.tag (Obj.repr [| 1.0; 2.0; 3.0 |]) ;;
+:: - : int = 254
+Obj.tag (Obj.repr (1.0, 2.0, 3.0) ) ;;
+:: - : int = 0
+Obj.double_field (Obj.repr [| 1.1; 2.2; 3.3 |]) 1 ;;
+:: - : float = 2.2
+Obj.double_field (Obj.repr 1.234) 0 ;;
+:: - : float = 1.234
+```
 
 The first thing we tested was that a float array has the correct unboxed
 float array tag value (254). However, the next line tests a tuple of
@@ -309,7 +338,16 @@ in ascending order: [variant types/memory representation
 of]{.idx}[lists/memory representation of]{.idx}[runtime memory
 representation/variants and lists]{.idx}
 
-<link rel="import" href="code/memory-repr/reprs.mlt" part="4" />
+```ocaml
+type t = Apple | Orange | Pear ;;
+:: type t = Apple | Orange | Pear
+((Obj.magic (Obj.repr Apple)) : int) ;;
+:: - : int = 0
+((Obj.magic (Obj.repr Pear)) : int) ;;
+:: - : int = 2
+Obj.is_block (Obj.repr Apple) ;;
+:: - : bool = false
+```
 
 `Obj.magic` unsafely forces a type cast between any two OCaml types; in this
 example, the `int` type hint retrieves the runtime integer value. The
@@ -321,7 +359,20 @@ stored as blocks, with the value *tags* ascending from 0 (counting from
 leftmost variants with parameters). The parameters are stored as words in the
 block:
 
-<link rel="import" href="code/memory-repr/reprs.mlt" part="5" />
+```ocaml
+type t = Apple | Orange of int | Pear of string | Kiwi ;;
+:: type t = Apple | Orange of int | Pear of string | Kiwi
+Obj.is_block (Obj.repr (Orange 1234)) ;;
+:: - : bool = true
+Obj.tag (Obj.repr (Orange 1234)) ;;
+:: - : int = 0
+Obj.tag (Obj.repr (Pear "xyz")) ;;
+:: - : int = 1
+(Obj.magic (Obj.field (Obj.repr (Orange 1234)) 0) : int) ;;
+:: - : int = 1234
+(Obj.magic (Obj.field (Obj.repr (Pear "xyz")) 0) : string) ;;
+:: - : string = "xyz"
+```
 
 In the preceding example, the `Apple` and `Kiwi` values are still stored as
 normal OCaml integers with values `0` and `1`, respectively. The `Orange` and
@@ -373,7 +424,13 @@ integer value is determined by applying a hash function to the *name* of the
 variant. The hash function isn't exposed directly by the compiler, but the
 `type_conv` library from Core provides an alternative implementation:
 
-<link rel="import" href="code/memory-repr/reprs.mlt" part="6" />
+```ocaml
+Pa_type_conv.hash_variant "Foo" ;;
+1> Characters 0-25:
+1> Error: Unbound module Pa_type_conv
+(Obj.magic (Obj.repr `Foo) : int) ;;
+:: - : int = 3505894
+```
 
 The hash function is designed to give the same results on 32-bit and 64-bit
 architectures, so the memory representation is stable across different CPUs
@@ -469,7 +526,19 @@ The first word of the data within the custom block is a C pointer to a
 `struct` of custom operations. The custom block cannot have pointers to OCaml
 blocks and is opaque to the GC:
 
-<link rel="import" href="code/memory-repr/custom_ops.c" />
+```
+struct custom_operations {
+  char *identifier;
+  void (*finalize)(value v);
+  int (*compare)(value v1, value v2);
+  intnat (*hash)(value v);
+  void (*serialize)(value v,
+                    /*out*/ uintnat * wsize_32 /*size in bytes*/,
+                    /*out*/ uintnat * wsize_64 /*size in bytes*/);
+  uintnat (*deserialize)(void * dst);
+  int (*compare_ext)(value v1, value v2);
+};
+```
 
 The custom operations specify how the runtime should perform polymorphic
 comparison, hashing and binary marshaling. They also optionally contain a
@@ -515,6 +584,4 @@ high-performance numerical code for applications that require linear algebra.
 It supports large vectors and matrices, but with static typing safety of
 OCaml to make it easier to write safe algorithms.
 <a data-type="indexterm" data-startref="MAPocaml">&nbsp;</a><a data-type="indexterm" data-startref="VALmemory">&nbsp;</a>
-
-
 

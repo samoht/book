@@ -21,7 +21,9 @@ following syntax. Note that variable names must start with a lowercase letter
 or an underscore. [bindings/top-level]{.idx}[top-level bindings]{.idx}[let
 syntax/top-level bindings]{.idx}
 
-<link rel="import" href="code/variables-and-functions/let.syntax" />
+```
+let <variable> = <expr>
+```
 
 As we'll see when we get to the module system in
 [Files Modules And Programs](files-modules-and-programs.html#files-modules-and-programs){data-type=xref},
@@ -41,7 +43,9 @@ Here's a simple example.
 `let` can also be used to create a variable binding whose scope is limited to
 a particular expression, using the following syntax.
 
-<link rel="import" href="code/variables-and-functions/let_in.syntax" />
+```
+let <variable> = <expr1> in <expr2>
+```
 
 This first evaluates *`expr1`* and then evaluates *`expr2`* with *`variable`*
 bound to whatever value was produced by the evaluation of *`expr1`*. Here's
@@ -280,7 +284,9 @@ right-associative. The type signature of `abs_diff` can therefore be
 parenthesized as follows. [curried functions]{.idx}[functions/curried
 functions]{.idx}
 
-<link rel="import" href="code/variables-and-functions/abs_diff.mli" />
+```ocaml
+val abs_diff : int -> (int -> int)
+```
 
 The parentheses don't change the meaning of the signature, but they make it
 easier to see the currying.
@@ -394,7 +400,9 @@ A function is treated syntactically as an operator if the name of that
 function is chosen from one of a specialized set of identifiers. This set
 includes identifiers that are sequences of characters from the following set:
 
-<link rel="import" href="code/variables-and-functions/operators.syntax" />
+```
+! $ % & * + - . / : < = > ? @ ^ | ~
+```
 
 or is one of a handful of predetermined strings, including `mod`, the modulus
 operator, and `lsl`, for "logical shift left," a bit-shifting operation.
@@ -596,15 +604,20 @@ Labeled arguments are useful in a few different cases:
   initial size of the array backing the hash table, and the second is a
   Boolean flag, which indicates whether that array will ever shrink when
   elements are removed.
-  
-  <link rel="import" href="code/variables-and-functions/htable_sig1.ml" />
-  
-  The signature makes it hard to divine the meaning of those two arguments.
+
+```ocaml
+val create_hashtable : int -> bool -> ('a,'b) Hashtable.t
+```
+
+The signature makes it hard to divine the meaning of those two arguments.
   but with labeled arguments, we can make the intent immediately clear.
-  
-  <link rel="import" href="code/variables-and-functions/htable_sig2.ml" />
-  
-  Choosing label names well is especially important for Boolean values, since
+
+```ocaml
+val create_hashtable :
+  init_size:int -> allow_shrinking:bool -> ('a,'b) Hashtable.t
+```
+
+Choosing label names well is especially important for Boolean values, since
   it's often easy to get confused about whether a value being true is meant
   to enable or disable a given feature.
 
@@ -612,16 +625,20 @@ Labeled arguments are useful in a few different cases:
   confused with each other. This is most at issue when the arguments are of
   the same type. For example, consider this signature for a function that
   extracts a substring.
-  
-  <link rel="import" href="code/variables-and-functions/substring_sig1.ml" />
-  
-  Here, the two `ints` are the starting position and length of the substring
+
+```ocaml
+val substring: string -> int -> int -> string
+```
+
+Here, the two `ints` are the starting position and length of the substring
   to extract, respectively, but you wouldn't know that from the type
   signature. We can make the signature more informative by adding labels.
-  
-  <link rel="import" href="code/variables-and-functions/substring_sig2.ml" />
-  
-  This improves the readability of both the signature and of client code that
+
+```ocaml
+val substring: string -> pos:int -> len:int -> string
+```
+
+This improves the readability of both the signature and of client code that
   makes use of `substring` and makes it harder to accidentally swap the
   position and the length.
 
@@ -794,7 +811,11 @@ Even worse, it would be perfectly consistent for `f` to take an optional
 argument instead of a labeled one, which could lead to this type signature
 for `numeric_deriv`.
 
-<link rel="import" href="code/variables-and-functions/numerical_deriv_alt_sig.mli" />
+```ocaml
+val numeric_deriv :
+  delta:float ->
+  x:float -> y:float -> f:(?x:float -> y:float -> float) -> float * float
+```
 
 Since there are multiple plausible types to choose from, OCaml needs some
 heuristic for choosing between them. The heuristic the compiler uses is to
@@ -879,7 +900,4 @@ usefulness of these features. Labels and optional arguments are very
 effective tools for making your APIs both more convenient and safer, and it's
 worth the effort of learning how to use them
 effectively.<a data-type="indexterm" data-startref="ARGopt">&nbsp;</a><a data-type="indexterm" data-startref="FNCopt">&nbsp;</a>
-
-
-
 

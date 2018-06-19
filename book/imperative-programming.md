@@ -153,11 +153,21 @@ actions. We could have done the same using `let` bindings:
 
 but `;` is more concise and idiomatic. More generally,
 
-<link rel="import" href="code/imperative-programming/semicolon.syntax" />
+```
+<expr1>;
+<expr2>;
+...
+<exprN>
+```
 
 is equivalent to
 
-<link rel="import" href="code/imperative-programming/let-unit.syntax" />
+```
+let () = <expr1> in
+let () = <expr2> in
+...
+<exprN>
+```
 
 When a sequence expression `expr1; expr2` is evaluated, `expr1` is evaluated
 first, and then `expr2`. The expression `expr1` should have type `unit`
@@ -203,11 +213,15 @@ module/Array.blit]{.idx}[Array module/Array.set]{.idx}
 
 Arrays also come with special syntax for retrieving an element from an array:
 
-<link rel="import" href="code/imperative-programming/array-get.syntax" />
+```
+<array_expr>.(<index_expr>)
+```
 
 and for setting an element in an array:
 
-<link rel="import" href="code/imperative-programming/array-set.syntax" />
+```
+<array_expr>.(<index_expr>) <- <value_expr>
+```
 
 Out-of-bounds accesses for arrays (and indeed for all the array-like data
 structures) will lead to an exception being thrown.
@@ -226,7 +240,10 @@ arrays]{.idx}[strings/vs. Char.t arrays]{.idx}
 
 Strings also come with their own syntax for getting and setting values:
 
-<link rel="import" href="code/imperative-programming/string.syntax" />
+```
+<string_expr>.[<index_expr>]
+          <string_expr>.[<index_expr>] <- <char_expr>
+```
 
 And string literals are bounded by quotes. There's also a module `String`
 where you'll find useful functions for working with strings.
@@ -239,8 +256,10 @@ and are discussed in
 [Memory Representation Of Values](runtime-memory-layout.html#memory-representation-of-values){data-type=xref}.
 Bigarrays too have their own getting and setting syntax: [bigarrays]{.idx}
 
-<link rel="import" href="code/imperative-programming/bigarray.syntax" />
-
+```
+<bigarray_expr>.{<index_expr>}
+          <bigarray_expr>.{<index_expr>} <- <value_expr>
+```
 
 ### Mutable Record and Object Fields and Ref Cells {#mutable-record-and-object-fields-and-ref-cells}
 
@@ -264,7 +283,10 @@ field. [ref cells]{.idx}
 
 The definition for the `ref` type is as follows:
 
-<link rel="import" href="code/imperative-programming/ref.mlt" part="1" />
+```ocaml
+type 'a ref = { mutable contents : 'a };;
+:: type 'a ref = { mutable contents : 'a; }
+```
 
 The standard library defines the following operators for working with `ref`s.
 
@@ -280,13 +302,28 @@ The standard library defines the following operators for working with `ref`s.
 
 You can see these in action:
 
-<link rel="import" href="code/imperative-programming/ref.mlt" part="3" />
+```ocaml
+let x = ref 1;;
+:: val x : int ref = {contents = 1}
+!x;;
+:: - : int = 1
+x := !x + 1;;
+:: - : unit = ()
+!x;;
+:: - : int = 2
+```
 
 The preceding are just ordinary OCaml functions, which could be defined as
 follows:
 
-<link rel="import" href="code/imperative-programming/ref.mlt" part="2" />
-
+```ocaml
+let ref x = { contents = x };;
+:: val ref : 'a -> 'a ref = <fun>
+let (!) r = r.contents;;
+:: val ( ! ) : 'a ref -> 'a = <fun>
+let (:=) r x = r.contents <- x;;
+:: val ( := ) : 'a ref -> 'a -> unit = <fun>
+```
 
 ### Foreign Functions {#foreign-functions}
 
@@ -317,12 +354,24 @@ The `for` loop is the simpler of the two. Indeed, we've already seen the
 `for` loop in action—the `iter` function in `Dictionary` is built using it.
 Here's a simple example of `for`:
 
-<link rel="import" href="code/imperative-programming/for.mlt" part="1" />
+```ocaml
+for i = 0 to 3 do printf "i = %d\n" i done;;
+1> i = 0
+1> i = 1
+1> i = 2
+1> i = 3:: - : unit = ()
+```
 
 As you can see, the upper and lower bounds are inclusive. We can also use
 `downto` to iterate in the other direction:
 
-<link rel="import" href="code/imperative-programming/for.mlt" part="2" />
+```ocaml
+for i = 3 downto 0 do printf "i = %d\n" i done;;
+1> i = 3
+1> i = 2
+1> i = 1
+1> i = 0:: - : unit = ()
+```
 
 Note that the loop variable of a `for` loop, `i` in this case, is immutable
 in the scope of the loop and is also local to the loop, i.e., it can't be
@@ -333,7 +382,29 @@ loop first evaluates the condition, and then, if it evaluates to true,
 evaluates the body and starts the loop again. Here's a simple example of a
 function for reversing an array in place:
 
-<link rel="import" href="code/imperative-programming/for.mlt" part="3" />
+```ocaml
+let rev_inplace ar =
+  let i = ref 0 in
+  let j = ref (Array.length ar - 1) in
+  (* terminate when the upper and lower indices meet *)
+  while !i < !j do
+    (* swap the two elements *)
+    let tmp = ar.(!i) in
+    ar.(!i) <- ar.(!j);
+    ar.(!j) <- tmp;
+    (* bump the indices *)
+    Int.incr i;
+    Int.decr j
+  done
+;;
+:: val rev_inplace : 'a array -> unit = <fun>
+let nums = [|1;2;3;4;5|];;
+:: val nums : int array = [|1; 2; 3; 4; 5|]
+rev_inplace nums;;
+:: - : unit = ()
+nums;;
+:: - : int array = [|5; 4; 3; 2; 1|]
+```
 
 In the preceding example, we used `incr` and `decr`, which are built-in
 functions for incrementing and decrementing an `int ref` by one,
@@ -350,7 +421,32 @@ lists]{.idx}[imperative programming/doubly-linked lists]{.idx #IPdoublink}
 
 Here's the `mli` of the module we'll build:
 
-<link rel="import" href="code/imperative-programming/dlist.mli" />
+```ocaml
+(* file: dlist.mli *)
+open Base
+
+type 'a t
+type 'a element
+
+(** Basic list operations  *)
+val create   : unit -> 'a t
+val is_empty : 'a t -> bool
+
+(** Navigation using [element]s *)
+val first : 'a t -> 'a element option
+val next  : 'a element -> 'a element option
+val prev  : 'a element -> 'a element option
+val value : 'a element -> 'a
+
+(** Whole-data-structure iteration *)
+val iter    : 'a t -> f:('a -> unit) -> unit
+val find_el : 'a t -> f:('a -> bool) -> 'a element option
+
+(** Mutation *)
+val insert_first : 'a t -> 'a -> 'a element
+val insert_after : 'a element -> 'a -> 'a element
+val remove : 'a t -> 'a element -> unit
+```
 
 Note that there are two types defined here: `'a t`, the type of a list; and
 `'a element`, the type of an element. Elements act as pointers to the
@@ -360,7 +456,18 @@ which to apply mutating operations.
 Now let's look at the implementation. We'll start by defining `'a element`
 and `'a t`:
 
-<link rel="import" href="code/imperative-programming/dlist.ml" part="1" />
+```ocaml
+(* file: dlist.ml *)
+open Base
+
+type 'a element =
+  { value : 'a;
+    mutable next : 'a element option;
+    mutable prev : 'a element option
+  }
+
+type 'a t = 'a element option ref
+```
 
 An `'a element` is a record containing the value to be stored in that node as
 well as optional (and mutable) fields pointing to the previous and next
@@ -373,7 +480,16 @@ otherwise.
 
 Now we can define a few basic functions that operate on lists and elements:
 
-<link rel="import" href="code/imperative-programming/dlist.ml" part="2" />
+```ocaml
+let create () = ref None
+let is_empty t = !t = None
+
+let value elt = elt.value
+
+let first t = !t
+let next elt = elt.next
+let prev elt = elt.prev
+```
 
 These all follow relatively straightforwardly from our type definitions.
 
@@ -404,7 +520,16 @@ Now, we'll start considering operations that mutate the list, starting with
 `insert_first`, which inserts an element at the front of the list:
 [elements/inserting in lists]{.idx}
 
-<link rel="import" href="code/imperative-programming/dlist.ml" part="3" />
+```ocaml
+let insert_first t value =
+  let new_elt = { prev = None; next = !t; value } in
+  begin match !t with
+  | Some old_first -> old_first.prev <- Some new_elt
+  | None -> ()
+  end;
+  t := Some new_elt;
+  new_elt
+```
 
 `insert_first` first defines a new element `new_elt`, and then links it into
 the list, finally setting the list itself to point to `new_elt`. Note that
@@ -418,11 +543,33 @@ We can use `insert_after` to insert elements later in the list.
 `insert_after` takes as arguments both an `element` after which to insert the
 new node and a value to insert:
 
-<link rel="import" href="code/imperative-programming/dlist.ml" part="4" />
+```ocaml
+let insert_after elt value =
+  let new_elt = { value; prev = Some elt; next = elt.next } in
+  begin match elt.next with
+  | Some old_next -> old_next.prev <- Some new_elt
+  | None -> ()
+  end;
+  elt.next <- Some new_elt;
+  new_elt
+```
 
 Finally, we need a `remove` function:
 
-<link rel="import" href="code/imperative-programming/dlist.ml" part="5" />
+```ocaml
+let remove t elt =
+  let { prev; next; _ } = elt in
+  begin match prev with
+  | Some prev -> prev.next <- next
+  | None -> t := next
+  end;
+  begin match next with
+  | Some next -> next.prev <- prev;
+  | None -> ()
+  end;
+  elt.prev <- None;
+  elt.next <- None
+```
 
 Note that the preceding code is careful to change the `prev` pointer of the
 following element and the `next` pointer of the previous element, if they
@@ -461,7 +608,23 @@ list, returning the first `element` that passes the test. Both `iter` and
 walk from element to element and `value` to extract the element from a given
 node:
 
-<link rel="import" href="code/imperative-programming/dlist.ml" part="6" />
+```ocaml
+let iter t ~f =
+  let rec loop = function
+    | None -> ()
+    | Some el -> f (value el); loop (next el)
+  in
+  loop !t
+
+let find_el t ~f =
+  let rec loop = function
+    | None -> None
+    | Some elt ->
+      if f (value elt) then Some elt
+      else loop (next elt)
+  in
+  loop !t
+```
 
 This completes our implementation, but there's still considerably more work
 to be done to make a really usable doubly linked list. As mentioned earlier,
@@ -489,7 +652,14 @@ using the `lazy` keyword, which can be used to convert any expression of type
 `s` into a lazy value of type `s Lazy.t`. The evaluation of that expression
 is delayed until forced with `Lazy.force`:
 
-<link rel="import" href="code/imperative-programming/lazy.mlt" part="1" />
+```ocaml
+let v = lazy (print_endline "performing lazy computation"; Float.sqrt 16.);;
+:: val v : float lazy_t = <lazy>
+Lazy.force v;;
+1> performing lazy computation:: - : float = 4.
+Lazy.force v;;
+:: - : float = 4.
+```
 
 You can see from the `print` statement that the actual computation was
 performed only once, and only after `force` had been called.
@@ -498,7 +668,14 @@ To better understand how laziness works, let's walk through the
 implementation of our own lazy type. We'll start by declaring types to
 represent a lazy value:
 
-<link rel="import" href="code/imperative-programming/lazy.mlt" part="2" />
+```ocaml
+type 'a lazy_state =
+  | Delayed of (unit -> 'a)
+  | Value of 'a
+  | Exn of exn
+;;
+:: type 'a lazy_state = Delayed of (unit -> 'a) | Value of 'a | Exn of exn
+```
 
 A `lazy_state` represents the possible states of a lazy value. A lazy value
 is `Delayed` before it has been run, where `Delayed` holds a function for
@@ -513,16 +690,43 @@ We can create a lazy value from a thunk, i.e., a function that takes a unit
 argument. Wrapping an expression in a thunk is another way to suspend the
 computation of an expression: [thunks]{.idx}
 
-<link rel="import" href="code/imperative-programming/lazy.mlt" part="3" />
+```ocaml
+let create_lazy f = ref (Delayed f);;
+:: val create_lazy : (unit -> 'a) -> 'a lazy_state ref = <fun>
+let v = 
+  create_lazy (fun () -> 
+    print_endline "performing lazy computation"; Float.sqrt 16.);;
+:: val v : float lazy_state ref = {Base.Ref.contents = Delayed <fun>}
+```
 
 Now we just need a way to force a lazy value. The following function does
 just that:
 
-<link rel="import" href="code/imperative-programming/lazy.mlt" part="4" />
+```ocaml
+let force v =
+  match !v with
+  | Value x -> x
+  | Exn e -> raise e
+  | Delayed f ->
+    try
+      let x = f () in
+      v := Value x;
+      x
+    with exn ->
+      v := Exn exn;
+      raise exn
+;;
+:: val force : 'a lazy_state ref -> 'a = <fun>
+```
 
 Which we can use in the same way we used `Lazy.force`:
 
-<link rel="import" href="code/imperative-programming/lazy.mlt" part="5" />
+```ocaml
+force v;;
+1> performing lazy computation:: - : float = 4.
+force v;;
+:: - : float = 4.
+```
 
 The main user-visible difference between our implementation of laziness and
 the built-in version is syntax. Rather than writing
@@ -540,7 +744,14 @@ Here's a function that takes as an argument an arbitrary single-argument
 function and returns a memoized version of that function. Here we'll use
 Core's `Hashtbl` module, rather than our toy `Dictionary`:
 
-<link rel="import" href="code/imperative-programming/memo.mlt" part="1" />
+```ocaml
+let memoize f =
+  let memo_table = Hashtbl.Poly.create () in
+  (fun x ->
+     Hashtbl.find_or_add memo_table x ~default:(fun () -> f x))
+;;
+:: val memoize : ('a -> 'b) -> 'a -> 'b = <fun>
+```
 
 The preceding code is a bit tricky. `memoize` takes as its argument a
 function `f` and then allocates a polymorphic hash table (called
@@ -571,7 +782,26 @@ Consider the following code for computing the edit distance. Understanding
 the algorithm isn't important here, but you should pay attention to the
 structure of the recursive calls: [memoization/example of]{.idx}
 
-<link rel="import" href="code/imperative-programming/memo.mlt" part="2" />
+```ocaml
+let rec edit_distance s t =
+  match String.length s, String.length t with
+  | (0,x) | (x,0) -> x
+  | (len_s,len_t) ->
+    let s' = String.drop_suffix s 1 in
+    let t' = String.drop_suffix t 1 in
+    let cost_to_drop_both =
+      if Char.(=) s.[len_s - 1] t.[len_t - 1] then 0 else 1
+    in
+    List.reduce_exn ~f:Int.min
+      [ edit_distance s' t  + 1
+      ; edit_distance s  t' + 1
+      ; edit_distance s' t' + cost_to_drop_both
+      ]
+;;
+:: val edit_distance : string -> string -> int = <fun>
+edit_distance "OCaml" "ocaml";;
+:: - : int = 2
+```
 
 The thing to note is that if you call `edit_distance "OCaml" "ocaml"`, then
 that will in turn dispatch the following calls:
@@ -594,11 +824,26 @@ calls grows exponentially with the size of the strings, meaning that our
 implementation of `edit_distance` is brutally slow for large strings. We can
 see this by writing a small timing function, using the `Mtime` package.
 
-<link rel="import" href="code/imperative-programming/memo.mlt" part="3" />
+```ocaml
+let time f =
+  let open Core in
+  let start = Time.now () in
+  let x = f () in
+  let stop = Time.now () in
+  printf "Time: %F ms\n" (Time.diff stop start |> Time.Span.to_ms);
+  x 
+;;
+:: val time : (unit -> 'a) -> 'a = <fun>
+```
 
 And now we can use this to try out some examples:
 
-<link rel="import" href="code/imperative-programming/memo.mlt" part="4" />
+```ocaml
+time (fun () -> edit_distance "OCaml" "ocaml");;
+1> Time: 1.10292434692 ms:: - : int = 2
+time (fun () -> edit_distance "OCaml 4.01" "ocaml 4.01");;
+1> Time: 3282.86218643 ms:: - : int = 2
+```
 
 Just those few extra characters made it thousands of times slower!
 
@@ -617,13 +862,22 @@ sequence. The Fibonacci sequence by definition starts out with two `1`s, with
 every subsequent element being the sum of the previous two. The classic
 recursive definition of Fibonacci is as follows:
 
-<link rel="import" href="code/imperative-programming/fib.mlt" part="1" />
+```ocaml
+let rec fib i =
+  if i <= 1 then 1 else fib (i - 1) + fib (i - 2);;
+:: val fib : int -> int = <fun>
+```
 
 This is, however, exponentially slow, for the same reason that
 `edit_distance` was slow: we end up making many redundant calls to `fib`. It
 shows up quite dramatically in the performance:
 
-<link rel="import" href="code/imperative-programming/fib.mlt" part="2" />
+```ocaml
+time (fun () -> fib 20);;
+1> Time: 1.12414360046 ms:: - : int = 10946
+time (fun () -> fib 40);;
+1> Time: 18263.7000084 ms:: - : int = 165580141
+```
 
 As you can see, `fib 40` takes thousands of times longer to compute than
 `fib 20`.
@@ -633,24 +887,51 @@ need to insert the memoization before the recursive calls within `fib`. We
 can't just define `fib` in the ordinary way and memoize it after the fact and
 expect the first call to `fib` to be improved.
 
-<link rel="import" href="code/imperative-programming/fib.mlt" part="3" />
+```ocaml
+let fib = memoize fib;;
+:: val fib : int -> int = <fun>
+time (fun () -> fib 40);;
+1> Time: 18122.092247 ms:: - : int = 165580141
+time (fun () -> fib 40);;
+1> Time: 0.00596046447754 ms:: - : int = 165580141
+```
 
 In order to make `fib` fast, our first step will be to rewrite `fib` in a way
 that unwinds the recursion. The following version expects as its first
 argument a function (called `fib`) that will be called in lieu of the usual
 recursive call.
 
-<link rel="import" href="code/imperative-programming/fib.mlt" part="4" />
+```ocaml
+let fib_norec fib i =
+  if i <= 1 then i
+  else fib (i - 1) + fib (i - 2) ;;
+:: val fib_norec : (int -> int) -> int -> int = <fun>
+```
 
 We can now turn this back into an ordinary Fibonacci function by tying the
 recursive knot:
 
-<link rel="import" href="code/imperative-programming/fib.mlt" part="5" />
+```ocaml
+let rec fib i = fib_norec fib i;;
+:: val fib : int -> int = <fun>
+fib 20;;
+:: - : int = 6765
+```
 
 We can even write a polymorphic function that we'll call `make_rec` that can
 tie the recursive knot for any function of this form:
 
-<link rel="import" href="code/imperative-programming/fib.mlt" part="6" />
+```ocaml
+let make_rec f_norec =
+  let rec f x = f_norec f x in
+  f
+;;
+:: val make_rec : (('a -> 'b) -> 'a -> 'b) -> 'a -> 'b = <fun>
+let fib = make_rec fib_norec;;
+:: val fib : int -> int = <fun>
+fib 20;;
+:: - : int = 6765
+```
 
 This is a pretty strange piece of code, and it may take a few moments of
 thought to figure out what's going on. Like `fib_norec`, the function
@@ -664,7 +945,15 @@ implement the same old slow Fibonacci function. To make it faster, we need a
 variant of `make_rec` that inserts memoization when it ties the recursive
 knot. We'll call that function `memo_rec`:
 
-<link rel="import" href="code/imperative-programming/fib.mlt" part="7" />
+```ocaml
+let memo_rec f_norec x =
+  let fref = ref (fun _ -> assert false) in
+  let f = memoize (fun x -> f_norec !fref x) in
+  fref := f;
+  f x
+;;
+:: val memo_rec : (('a -> 'b) -> 'a -> 'b) -> 'a -> 'b = <fun>
+```
 
 Note that `memo_rec` has the same signature as `make_rec`.
 
@@ -673,7 +962,12 @@ using a `let rec`, which for reasons we'll describe later wouldn't work here.
 
 Using `memo_rec`, we can now build an efficient version of `fib`:
 
-<link rel="import" href="code/imperative-programming/fib.mlt" part="8" />
+```ocaml
+let fib = memo_rec fib_norec;;
+:: val fib : int -> int = <fun>
+time (fun () -> fib 40);;
+1> Time: 0.0388622283936 ms:: - : int = 102334155
+```
 
 And as you can see, the exponential time complexity is now gone.
 
@@ -688,7 +982,11 @@ after the computation completes.
 We can use `memo_rec` as part of a single declaration that makes this look
 like it's little more than a special form of `let rec`:
 
-<link rel="import" href="code/imperative-programming/fib.mlt" part="9" />
+```ocaml
+let fib = memo_rec (fun fib i ->
+  if i <= 1 then 1 else fib (i - 1) + fib (i - 2));;
+:: val fib : int -> int = <fun>
+```
 
 Memoization is overkill for implementing Fibonacci, and indeed, the `fib`
 defined above is not especially efficient, allocating space linear in the
@@ -703,13 +1001,32 @@ the original interface with a wrapper function.) With just that change and
 the addition of the `memo_rec` call, we can get a memoized version of
 `edit_distance`:
 
-<link rel="import" href="code/imperative-programming/memo.mlt" part="6" />
+```ocaml
+let edit_distance = memo_rec (fun edit_distance (s,t) ->
+  match String.length s, String.length t with
+  | (0,x) | (x,0) -> x
+  | (len_s,len_t) ->
+    let s' = String.drop_suffix s 1 in
+    let t' = String.drop_suffix t 1 in
+    let cost_to_drop_both =
+      if Char.(=) s.[len_s - 1] t.[len_t - 1] then 0 else 1
+    in
+    List.reduce_exn ~f:Int.min
+      [ edit_distance (s',t ) + 1
+      ; edit_distance (s ,t') + 1
+      ; edit_distance (s',t') + cost_to_drop_both
+      ]) ;;
+:: val edit_distance : string * string -> int = <fun>
+```
 
 This new version of `edit_distance` is much more efficient than the one we
 started with; the following call is many thousands of times faster than it
 was without memoization:
 
-<link rel="import" href="code/imperative-programming/memo.mlt" part="7" />
+```ocaml
+time (fun () -> edit_distance ("OCaml 4.01","ocaml 4.01"));;
+1> Time: 0.348091125488 ms:: - : int = 2
+```
 
 ::: {.allow_break data-type=note}
 #### Limitations of let rec
@@ -725,7 +1042,9 @@ OCaml rejects the definition because OCaml, as a strict language, has limits
 on what it can put on the righthand side of a `let rec`. In particular,
 imagine how the following code snippet would be compiled:
 
-<link rel="import" href="code/imperative-programming/let_rec.ml" />
+```ocaml
+let rec x = x + 1
+```
 
 Note that `x` is an ordinary value, not a function. As such, it's not clear
 how this definition should be handled by the compiler. You could imagine it
@@ -825,17 +1144,39 @@ out the current time in that time zone. Here, we use Core's `Zone` module for
 looking up a time zone, and the `Time` module for computing the current time
 and printing it out in the time zone in question:
 
-<link rel="import" href="code/imperative-programming/time_converter/time_converter.ml" />
+```ocaml
+open Core
+
+let () =
+  Out_channel.output_string stdout "Pick a timezone: ";
+  Out_channel.flush stdout;
+  match In_channel.input_line stdin with
+  | None -> failwith "No timezone provided"
+  | Some zone_string ->
+    let zone = Time.Zone.find_exn zone_string in
+    let time_string = Time.to_string_abs (Time.now ()) ~zone in
+    Out_channel.output_string stdout
+      (String.concat
+         ["The time in ";Time.Zone.to_string zone;" is ";time_string;".\n"]);
+    Out_channel.flush stdout
+```
 
 We can build this program using `jbuilder` and run it. You'll see that it
 prompts you for input, as follows:
 
-<link rel="import" href="code/imperative-programming/time_converter/time_converter.rawsh" />
+```
+$ jbuilder build time_converter.bc
+$ ./_build/default/time_converter.bc
+Pick a timezone:
+```
 
 You can then type in the name of a time zone and hit Return, and it will
 print out the current time in the time zone in question:
 
-<link rel="import" href="code/imperative-programming/time_converter2.rawsh" />
+```
+Pick a timezone: Europe/London
+The time in Europe/London is 2013-08-15 00:03:10.666220+01:00.
+```
 
 We called `Out_channel.flush` on `stdout` because `out_channel`s are
 buffered, which is to say that OCaml doesn't immediately do a write every
@@ -918,7 +1259,18 @@ useful to keep the broad outlines of the story in the back of your head.
 Now let's see how we can rewrite our time conversion program to be a little
 more concise using `printf`:
 
-<link rel="import" href="code/imperative-programming/time_converter2.ml" />
+```ocaml
+open Core
+
+let () =
+  printf "Pick a timezone: %!";
+  match In_channel.input_line In_channel.stdin with
+  | None -> failwith "No timezone provided"
+  | Some zone_string ->
+    let zone = Time.Zone.find_exn zone_string in
+    let time_string = Time.to_string_abs (Time.now ()) ~zone in
+    printf "The time in %s is %s.\n%!" (Time.Zone.to_string zone) time_string
+```
 
 In the preceding example, we've used only two formatting directives: 
 `%s`, for including a string, and `%!` which causes `printf` to flush the
@@ -957,7 +1309,26 @@ files. Here are a couple of functions—one that creates a file full of
 numbers, and the other that reads in such a file and returns the sum of those
 numbers: [files/file I/O]{.idx}[I/O (input/output) operations/file I/O]{.idx}
 
-<link rel="import" href="code/imperative-programming/file.mlt" part="1" />
+```ocaml
+let create_number_file filename numbers =
+  let outc = Out_channel.create filename in
+  List.iter numbers ~f:(fun x -> Out_channel.fprintf outc "%d\n" x);
+  Out_channel.close outc
+;;
+:: val create_number_file : string -> int list -> unit = <fun>
+let sum_file filename =
+  let file = In_channel.create filename in
+  let numbers = List.map ~f:Int.of_string (In_channel.input_lines file) in
+  let sum = List.fold ~init:0 ~f:(+) numbers in
+  In_channel.close file;
+  sum
+;;
+:: val sum_file : string -> int = <fun>
+create_number_file "numbers.txt" [1;2;3;4;5];;
+:: - : unit = ()
+sum_file "numbers.txt";;
+:: - : int = 15
+```
 
 For both of these functions, we followed the same basic sequence: we first
 create the channel, then use the channel, and finally close the channel. The
@@ -968,12 +1339,21 @@ One problem with the preceding code is that if it throws an exception in the
 middle of its work, it won't actually close the file. If we try to read a
 file that doesn't actually contain numbers, we'll see such an error:
 
-<link rel="import" href="code/imperative-programming/file.mlt" part="2" />
+```ocaml
+sum_file "/etc/hosts";;
+1> Exception: (Failure "Int.of_string: \"##\"").
+```
 
 And if we do this over and over in a loop, we'll eventually run out of file
 descriptors:
 
-<link rel="import" href="code/imperative-programming/file.mlt" part="3" />
+```ocaml
+for i = 1 to 10000 do try ignore (sum_file "/etc/hosts") with _ -> () done;;
+:: - : unit = ()
+sum_file "numbers.txt";;
+1> File "file.topscript", line 1:
+1> Error: I/O error: /var/folders/z3/7h_5sgf933952482gktqg_gh0000gn/T/camlppxc637c7: Too many open files
+```
 
 And now, you'll need to restart your toplevel if you want to open any more
 files!
@@ -1083,7 +1463,16 @@ Consider the following simple, imperative function: [polymorphism/weak
 polymorphism]{.idx}[weak polymorphism]{.idx}[side effects]{.idx}[ imperative
 programming/side effects/weak polymorphism ]{.idx #IPsideweak}
 
-<link rel="import" href="code/imperative-programming/weak.mlt" part="1" />
+```ocaml
+let remember =
+  let cache = ref None in
+  (fun x ->
+     match !cache with
+     | Some y -> y
+     | None -> cache := Some x; x)
+;;
+:: val remember : '_weak1 -> '_weak1 = <fun>
+```
 
 `remember` simply caches the first value that's passed to it, returning that
 value on every call. That's because `cache` is created and initialized once
@@ -1100,7 +1489,14 @@ generalize, replacing `t` with a polymorphic type variable. It's this kind of
 generalization that gives us polymorphic types in the first place. The
 identity function, as an example, gets a polymorphic type in this way:
 
-<link rel="import" href="code/imperative-programming/weak.mlt" part="2" />
+```ocaml
+let identity x = x;;
+:: val identity : 'a -> 'a = <fun>
+identity 3;;
+:: - : int = 3
+identity "five";;
+:: - : string = "five"
+```
 
 As you can see, the polymorphic type of `identity` lets it operate on values
 with different types.
@@ -1109,7 +1505,9 @@ This is not what happens with `remember`, though. As you can see from the
 above examples, the type that OCaml infers for `remember` looks almost, but
 not quite, like the type of the identity function. Here it is again:
 
-<link rel="import" href="code/imperative-programming/remember_type.ml" />
+```ocaml
+val remember : '_a -> '_a = <fun>
+```
 
 The underscore in the type variable `'_a` tells us that the variable is only
 *weakly polymorphic*, which is to say that it can be used with any *single*
@@ -1120,7 +1518,16 @@ must always have the same type. [type variables]{.idx}
 OCaml will convert a weakly polymorphic variable to a concrete type as soon
 as it gets a clue as to what concrete type it is to be used as:
 
-<link rel="import" href="code/imperative-programming/weak.mlt" part="3" />
+```ocaml
+let remember_three () = remember 3;;
+:: val remember_three : unit -> int = <fun>
+remember;;
+:: - : int -> int = <fun>
+remember "avocado";;
+1> Characters 9-18:
+1> Error: This expression has type string but an expression was expected of type
+1>          int
+```
 
 Note that the type of `remember` was settled by the definition of
 `remember_three`, even though `remember_three` was never called!
@@ -1319,5 +1726,4 @@ fundamental part of building any serious application, and that if you want to
 be an effective OCaml programmer, you need to understand OCaml's approach to
 imperative
 programming.<a data-type="indexterm" data-startref="PROGimper">&nbsp;</a>
-
 

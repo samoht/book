@@ -40,8 +40,12 @@ OS package manager. Try `opam depext -ui ctypes-foreign`.
 Once that's done, Ctypes is available via OPAM as usual:
 :::
 
-
-<link rel="import" href="code/ffi/install.rawsh" />
+```
+$ brew install libffi     # for MacOS X users
+$ opam install ctypes
+$ utop
+# require "ctypes.foreign" ;;
+```
 
 You'll also need the Ncurses library for the first example. This comes
 preinstalled on many operating systems such as Mac OS X, and Debian Linux
@@ -59,7 +63,21 @@ The full C interface is quite large and is explained in the online
 small excerpt, since we just want to demonstrate Ctypes in action:[Ctypes
 library/terminal interface example]{.idx}
 
-<link rel="import" href="code/ffi/ncurses/ncurses.h" />
+```
+typedef struct _win_st WINDOW;
+typedef unsigned int chtype;
+
+WINDOW *initscr   (void);
+WINDOW *newwin    (int, int, int, int);
+void    endwin    (void);
+void    refresh   (void);
+void    wrefresh  (WINDOW *);
+void    addstr (const char *);
+int     mvwaddch  (WINDOW *, int, int, const chtype);
+void    mvwaddstr (WINDOW *, int, int, char *);
+void    box (WINDOW *, chtype, chtype);
+int     cbreak (void);
+```
 
 The Ncurses functions either operate on the current pseudoterminal or on a
 window that has been created via `newwin`. The `WINDOW` structure holds the
@@ -83,7 +101,12 @@ OCaml value.
 Let's begin by defining the basic values we need, starting with the `WINDOW`
 state pointer:
 
-<link rel="import" href="code/ffi/ncurses/ncurses.ml" />
+```ocaml
+open Ctypes
+
+type window = unit ptr
+let window : window typ = ptr void
+```
 
 We don't know the internal representation of the window pointer, so we treat
 it as a C void pointer. We'll improve on this later on in the chapter, but
@@ -91,7 +114,12 @@ it's good enough for now. The second statement defines an OCaml value that
 represents the `WINDOW` C pointer. This value is used later in the Ctypes
 function definitions:
 
-<link rel="import" href="code/ffi/ncurses/ncurses.ml" part="1" />
+```ocaml
+open Foreign
+
+let initscr =
+  foreign "initscr" (void @-> returning window)
+```
 
 That's all we need to invoke our first function call to `initscr` to
 initialize the terminal. The `foreign` function accepts two parameters:
@@ -105,7 +133,37 @@ initialize the terminal. The `foreign` function accepts two parameters:
 
 The remainder of the Ncurses binding simply expands on these definitions:
 
-<link rel="import" href="code/ffi/ncurses/ncurses.ml" part="2" />
+```ocaml
+let newwin =
+  foreign "newwin" 
+    (int @-> int @-> int @-> int @-> returning window)
+
+let endwin =
+  foreign "endwin" (void @-> returning void)
+
+let refresh =
+  foreign "refresh" (void @-> returning void)
+
+let wrefresh =
+  foreign "wrefresh" (window @-> returning void)
+
+let addstr =
+  foreign "addstr" (string @-> returning void)
+
+let mvwaddch =
+  foreign "mvwaddch"
+    (window @-> int @-> int @-> char @-> returning void)
+
+let mvwaddstr =
+  foreign "mvwaddstr"
+    (window @-> int @-> int @-> string @-> returning void)
+
+let box =
+  foreign "box" (window @-> char @-> char @-> returning void)
+
+let cbreak =
+  foreign "cbreak" (void @-> returning int)
+```
 
 These definitions are all straightforward mappings from the C declarations in
 the Ncurses header file. Note that the `string` and `int` values here are
@@ -122,7 +180,11 @@ The module signature for `ncurses.mli` looks much like a normal OCaml
 signature. You can infer it directly from the `ncurses.ml` by running a
 special build target:
 
-<link rel="import" href="code/ffi/ncurses/infer_ncurses.sh" />
+```sh
+  $ corebuild -pkg ctypes.foreign ncurses.inferred.mli
+  $ cp _build/ncurses.inferred.mli .
+
+```
 
 The `inferred.mli` target instructs the compiler to generate the default
 signature for a module file and places it in the `_build` directory as a
@@ -132,7 +194,20 @@ internals more abstract.
 
 Here's the customized interface that we can safely use from other libraries:
 
-<link rel="import" href="code/ffi/ncurses/ncurses.mli" />
+```ocaml
+type window
+val window : window Ctypes.typ
+val initscr : unit -> window
+val endwin : unit -> unit
+val refresh : unit -> unit
+val wrefresh : window -> unit
+val newwin : int -> int -> int -> int -> window
+val mvwaddch : window -> int -> int -> char -> unit
+val addstr : string -> unit
+val mvwaddstr : window -> int -> int -> string -> unit
+val box : window -> char -> char -> unit
+val cbreak : unit -> int
+```
 
 The `window` type is left abstract in the signature to ensure that window
 pointers can only be constructed via the `Ncurses.initscr` function. This
@@ -142,14 +217,46 @@ passed to an Ncurses library call.
 Now compile a "hello world" terminal drawing program to tie this all
 together:
 
-<link rel="import" href="code/ffi/hello/hello.ml" />
+```ocaml
+open Ncurses
+
+let () =
+  let main_window = initscr () in
+  ignore(cbreak ());
+  let small_window = newwin 10 10 5 5 in
+  mvwaddstr main_window 1 2 "Hello";
+  mvwaddstr small_window 2 2 "World";
+  box small_window '\000' '\000';
+  refresh ();
+  Unix.sleep 1;
+  wrefresh small_window;
+  Unix.sleep 5;
+  endwin ()
+```
 
 The `hello` executable is compiled by linking with the `ctypes.foreign`
 OCamlfind package:
 
-<link rel="import" href="code/ffi/hello/jbuild" />
+```
+(executable
+  ((name hello)
+   (libraries (ctypes.foreign))
+   (flags (:standard -cclib -lncurses))
+  )
+)
+```
 
-<link rel="import" href="code/ffi/hello/build_hello.sh" />
+
+
+```sh
+  $ jbuilder build hello.exe
+        ocamlc .hello.eobjs/hello.{cmi,cmo,cmt} (exit 2)
+  (cd _build/default && /home/yminsky/.opam/fresh-4.06.1/bin/ocamlc.opt -w -40 -cclib -lncurses -g -bin-annot -I .hello.eobjs -I /home/yminsky/.opam/fresh-4.06.1/lib/bytes -I /home/yminsky/.opam/fresh-4.06.1/lib/ctypes -I /home/yminsky/.opam/fresh-4.06.1/lib/integers -I /home/yminsky/.opam/fresh-4.06.1/lib/ocaml/threads -no-alias-deps -o .hello.eobjs/hello.cmo -c -impl hello.ml)
+  File "hello.ml", line 1, characters 5-12:
+  Error: Unbound module Ncurses
+@@ exit 1
+
+```
 
 Running `./hello.native` should now display a Hello World in your terminal!
 [Ctypes library/build directives for]{.idx}
@@ -169,7 +276,9 @@ First, let's look at how to define basic scalar C types. Every C type is
 represented by an OCaml equivalent via the single type definition:[scalar C
 types]{.idx}[foreign function interface (FFI)/basic scalar C types]{.idx}
 
-<link rel="import" href="code/ctypes/ctypes.mli" />
+```ocaml
+type 'a typ
+```
 
 `Ctypes.typ` is the type of values that represents C types to OCaml. There
 are two types associated with each instance of `typ`:
@@ -192,7 +301,38 @@ There are various other uses of `typ` values within Ctypes, such as:
 Here are the definitions for most of the standard C99 scalar types, including
 some platform-dependent ones: [C99 scalar types]{.idx}
 
-<link rel="import" href="code/ctypes/ctypes.mli" part="1" />
+```ocaml
+val void      : unit typ
+val char      : char typ
+val schar     : int typ
+val short     : int typ
+val int       : int typ
+val long      : long typ
+val llong     : llong typ
+val nativeint : nativeint typ
+
+val int8_t    : int typ
+val int16_t   : int typ
+val int32_t   : int32 typ
+val int64_t   : int64 typ
+val uchar     : uchar typ
+val uchar     : uchar typ
+val uint8_t   : uint8 typ
+val uint16_t  : uint16 typ
+val uint32_t  : uint32 typ
+val uint64_t  : uint64 typ
+val size_t    : size_t typ
+val ushort    : ushort typ
+val uint      : uint typ
+val ulong     : ulong typ
+val ullong    : ullong typ
+
+val float     : float typ
+val double    : float typ
+
+val complex32 : Complex.t typ
+val complex64 : Complex.t typ
+```
 
 These values are all of type `'a typ`, where the value name (e.g., `void`)
 tells you the C type and the `'a` component (e.g., `unit`) is the OCaml
@@ -226,7 +366,11 @@ arrays]{.idx}
 We've already seen a simple use of pointers in the Ncurses example. Let's
 start a new example by binding the following POSIX functions:
 
-<link rel="import" href="code/ffi/posix_headers.h" />
+```
+time_t time(time_t *);
+double difftime(time_t, time_t);
+char *ctime(const time_t *timep);
+```
 
 The `time` function returns the current calendar time and is a simple start.
 The first step is to open some of the Ctypes modules:
@@ -244,7 +388,20 @@ The first step is to open some of the Ctypes modules:
 
 We can now create a binding to `time` directly from the toplevel.
 
-<link rel="import" href="code/ffi/posix.mlt" part="0.5" />
+```ocaml
+#require "ctypes.foreign" ;;
+
+#require "ctypes.top" ;;
+
+open Ctypes ;;
+
+open PosixTypes ;;
+
+open Foreign ;;
+
+let time = foreign "time" (ptr time_t @-> returning time_t) ;;
+:: val time : time_t Ctypes_static.ptr -> time_t = <fun>
+```
 
 The `foreign` function is the main link between OCaml and C. It takes two
 arguments: the name of the C function to bind, and a value describing the
@@ -255,19 +412,35 @@ We can now call `time` immediately in the same toplevel. The argument is
 actually optional, so we'll just pass a null pointer that has been coerced
 into becoming a null pointer to `time_t`:
 
-<link rel="import" href="code/ffi/posix.mlt" part="1" />
+```ocaml
+let cur_time = time (from_voidp time_t null) ;;
+:: ...
+```
 
 Since we're going to call `time` a few times, let's create a wrapper function
 that passes the null pointer through:
 
-<link rel="import" href="code/ffi/posix.mlt" part="2" />
+```ocaml
+let time' () = time (from_voidp time_t null) ;;
+:: val time' : unit -> time_t = <fun>
+```
 
 Since `time_t` is an abstract type, we can't actually do anything useful with
 it directly. We need to bind a second function to do anything useful with the
 return values from `time`. We'll move on to `difftime`; the second C function
 in our prototype list:
 
-<link rel="import" href="code/ffi/posix.mlt" part="3" />
+```ocaml
+let difftime =
+  foreign "difftime" (time_t @-> time_t @-> returning double) ;;
+:: val difftime : time_t -> time_t -> float = <fun>
+let t1 =
+  time' () in
+Unix.sleep 2;
+let t2 = time' () in
+difftime t2 t1 ;;
+:: ...
+```
 
 The binding to `difftime` above is sufficient to compare two `time_t` values.
 
@@ -279,24 +452,38 @@ to a function. Continuing with the theme from earlier, we'll bind to the
 string:[memory/allocation for pointers]{.idx}[pointers/allocating typed
 memory for]{.idx}
 
-<link rel="import" href="code/ffi/posix.mlt" part="4" />
+```ocaml
+let ctime = foreign "ctime" (ptr time_t @-> returning string) ;;
+:: val ctime : time_t Ctypes_static.ptr -> string = <fun>
+```
 
 The binding is continued in the toplevel to add to our growing collection.
 However, we can't just pass the result of `time` to `ctime`:
 
-<link rel="import" href="code/ffi/posix.mlt" part="5" />
+```ocaml
+ctime (time' ()) ;;
+1> Characters 6-16:
+1> Error: This expression has type time_t but an expression was expected of type
+1>          time_t Ctypes_static.ptr = (time_t, [ `C ]) pointer
+```
 
 This is because `ctime` needs a pointer to the `time_t` rather than passing
 it by value. We thus need to allocate some memory for the `time_t` and obtain
 its memory address:
 
-<link rel="import" href="code/ffi/posix.mlt" part="6" />
+```ocaml
+let t_ptr = allocate time_t (time' ()) ;;
+:: ...
+```
 
 The `allocate` function takes the type of the memory to be allocated and the
 initial value and it returns a suitably typed pointer. We can now call
 `ctime` passing the pointer as an argument:
 
-<link rel="import" href="code/ffi/posix.mlt" part="7" />
+```ocaml
+ctime t_ptr ;;
+:: ...
+```
 
 ### Using Views to Map Complex Values {#using-views-to-map-complex-values}
 
@@ -313,23 +500,38 @@ is written or read.
 
 Here is the type signature of the `Ctypes.view` function:
 
-<link rel="import" href="code/ctypes/ctypes.mli" part="2" />
+```ocaml
+val view :
+  read:('a -> 'b) ->
+  write:('b -> 'a) ->
+  'a typ -> 'b typ
+```
 
 Ctypes has some internal low-level conversion functions that map between an
 OCaml `string` and a C character buffer by copying the contents into the
 respective data structure. They have the following type signature:
 
-<link rel="import" href="code/ctypes/ctypes.mli" part="3" />
+```ocaml
+val string_of_char_ptr : char ptr -> string
+val char_ptr_of_string : string -> char ptr
+```
 
 Given these functions, the definition of the `Ctypes.string` value that uses
 views is quite simple:
 
-<link rel="import" href="code/ctypes/ctypes_impl.ml" />
+```ocaml
+let string = 
+  view (char ptr)
+    ~read:string_of_char_ptr 
+    ~write:char_ptr_of_string
+```
 
 The type of this `string` function is a normal `typ` with no external sign of
 the use of the view function:
 
-<link rel="import" href="code/ctypes/ctypes.mli" part="4" />
+```ocaml
+val string    : string.typ
+```
 
 ::: {data-type=note}
 #### OCaml Strings Versus C Character Buffers
@@ -366,12 +568,24 @@ Let's improve the timer function that we wrote earlier. The POSIX function
 `gettimeofday` retrieves the time with microsecond resolution. The signature
 of `gettimeofday` is as follows, including the structure definitions:
 
-<link rel="import" href="code/ffi/timeval_headers.h" />
+```
+struct timeval {
+  long tv_sec;
+  long tv_usec;
+};
+
+int gettimeofday(struct timeval *, struct timezone *tv);
+```
 
 Using Ctypes, we can describe this type as follows in our toplevel,
 continuing on from the previous definitions:
 
-<link rel="import" href="code/ffi/posix.mlt" part="8" />
+```ocaml
+type timeval ;;
+:: type timeval
+let timeval : timeval structure typ = structure "timeval" ;;
+:: val timeval : timeval structure typ = struct timeval
+```
 
 The first command defines a new OCaml type `timeval` that we'll use to
 instantiate the OCaml version of the struct. This is a *phantom type* that
@@ -389,7 +603,16 @@ The `timeval` structure definition still doesn't have any fields, so we need
 to add those next: [fields/adding to structures]{.idx}[structs and
 unions/field addition]{.idx}
 
-<link rel="import" href="code/ffi/posix.mlt" part="9" />
+```ocaml
+let tv_sec  = field timeval "tv_sec" long ;;
+:: val tv_sec : (Signed.long, timeval structure) field =
+::   {Ctypes_static.ftype = long; foffset = 0; fname = "tv_sec"}
+let tv_usec = field timeval "tv_usec" long ;;
+:: val tv_usec : (Signed.long, timeval structure) field =
+::   {Ctypes_static.ftype = long; foffset = 8; fname = "tv_usec"}
+seal timeval ;;
+:: - : unit = ()
+```
 
 The `field` function appends a field to the structure, as shown with 
 `tv_sec` and `tv_usec`. Structure fields are typed accessors that are
@@ -407,7 +630,12 @@ Since `gettimeofday` needs a `struct timezone` pointer for its second
 argument, we also need to define a second structure type: [structs and
 unions/incomplete structure definitions]{.idx}
 
-<link rel="import" href="code/ffi/posix.mlt" part="10" />
+```ocaml
+type timezone ;;
+:: type timezone
+let timezone : timezone structure typ = structure "timezone" ;;
+:: val timezone : timezone structure typ = struct timezone
+```
 
 We don't ever need to create `struct timezone` values, so we can leave this
 struct as incomplete without adding any fields or sealing it. If you ever try
@@ -416,7 +644,13 @@ library will raise an `IncompleteType` exception.
 
 We're finally ready to bind to `gettimeofday` now:
 
-<link rel="import" href="code/ffi/posix.mlt" part="11" />
+```ocaml
+let gettimeofday = foreign "gettimeofday" ~check_errno:true
+                     (ptr timeval @-> ptr timezone @-> returning int) ;;
+:: val gettimeofday :
+::   timeval structure Ctypes_static.ptr ->
+::   timezone structure Ctypes_static.ptr -> int = <fun>
+```
 
 There's one other new feature here: the `returning_checking_errno` function
 behaves like `returning`, except that it checks whether the bound C function
@@ -429,7 +663,17 @@ functions `make`, `addr`, and `getf` create a structure value, retrieve the
 address of a structure value, and retrieve the value of a field from a
 structure:
 
-<link rel="import" href="code/ffi/posix.mlt" part="12" />
+```ocaml
+let gettimeofday' () =
+  let tv = make timeval in
+  ignore(gettimeofday (addr tv) (from_voidp timezone null));
+  let secs = Signed.Long.(to_int (getf tv tv_sec)) in
+  let usecs = Signed.Long.(to_int (getf tv tv_usec)) in
+  Pervasives.(float secs +. float usecs /. 1000000.0) ;;
+:: val gettimeofday' : unit -> float = <fun>
+gettimeofday' () ;;
+:: - : float = 1516746708.884176
+```
 
 You need to be a little careful not to get all the open modules mixed up
 here. Both `Pervasives` and `Ctypes` define different `float` functions. The
@@ -443,13 +687,73 @@ We built up a lot of bindings in the previous section, so let's recap them
 with a complete example that ties it together with a command-line frontend:
 [structs and unions/time-printing command]{.idx}
 
-<link rel="import" href="code/ffi/datetime/datetime.ml" />
+```ocaml
+open Core
+open Ctypes
+open PosixTypes
+open Foreign
+
+let time     = foreign "time" (ptr time_t @-> returning time_t)
+let difftime = foreign "difftime" (time_t @-> time_t @-> returning double)
+let ctime    = foreign "ctime" (ptr time_t @-> returning string)
+
+type timeval
+let timeval : timeval structure typ = structure "timeval"
+let tv_sec   = field timeval "tv_sec" long
+let tv_usec  = field timeval "tv_usec" long
+let ()       = seal timeval
+
+type timezone
+let timezone : timezone structure typ = structure "timezone"
+
+let gettimeofday = foreign "gettimeofday" ~check_errno:true
+    (ptr timeval @-> ptr timezone @-> returning int)
+
+let time' () = time (from_voidp time_t null)
+
+let gettimeofday' () =
+  let tv = make timeval in
+  ignore(gettimeofday (addr tv) (from_voidp timezone null));
+  let secs = Signed.Long.(to_int (getf tv tv_sec)) in
+  let usecs = Signed.Long.(to_int (getf tv tv_usec)) in
+  Pervasives.(float secs +. float usecs /. 1_000_000.)
+
+let float_time () = printf "%f%!\n" (gettimeofday' ())
+
+let ascii_time () =
+  let t_ptr = allocate time_t (time' ()) in
+  printf "%s%!" (ctime t_ptr)
+
+let () =
+  let open Command in
+  basic_spec ~summary:"Display the current time in various formats"
+    Spec.(empty +> flag "-a" no_arg ~doc:" Human-readable output format")
+    (fun human -> if human then ascii_time else float_time)
+  |> Command.run
+```
 
 This can be compiled and run in the usual way: [returning function]{.idx}
 
-<link rel="import" href="code/ffi/datetime/jbuild" />
+```
+(executable
+  ((name datetime)
+   (libraries (core ctypes.foreign))
+  )
+)
+```
 
-<link rel="import" href="code/ffi/datetime/build_datetime.sh" />
+
+
+```sh
+  $ jbuilder build datetime.exe
+%% --non-deterministic
+  $ ./_build/default/datetime.exe
+  1520339271.364367
+%% --non-deterministic
+  $ ./_build/default/datetime.exe -a
+  Tue Mar  6 13:27:51 2018
+
+```
 
 <aside data-type="sidebar">
 <h5>Why Do We Need to Use returning?</h5>
@@ -457,12 +761,20 @@ This can be compiled and run in the usual way: [returning function]{.idx}
 The alert reader may be curious about why all these function definitions have
 to be terminated by `returning`:
 
-<link rel="import" href="code/ffi/return_frag.ml" />
+```ocaml
+(* correct types *)
+val time: ptr time_t @-> returning time_t
+val difftime: time_t @-> time_t @-> returning double
+```
 
 The `returning` function may appear superfluous here. Why couldn't we simply
 give the types as follows?
 
-<link rel="import" href="code/ffi/return_frag.ml" part="1" />
+```ocaml
+(* incorrect types *)
+val time: ptr time_t @-> time_t
+val difftime: time_t @-> time_t @-> double
+```
 
 The reason involves higher types and two differences between the way that
 functions are treated in OCaml and C. Functions are first-class values in
@@ -472,25 +784,44 @@ pointer from a function, but not to return an actual function.
 Secondly, OCaml functions are typically defined in a curried style. The
 signature of a two-argument function is written as follows:
 
-<link rel="import" href="code/ffi/return_frag.ml" part="2" />
+```ocaml
+val curried : int -> int -> int
+```
 
 but this really means:
 
-<link rel="import" href="code/ffi/return_frag.ml" part="3" />
+```ocaml
+val curried : int -> (int -> int)
+```
 
 and the arguments can be supplied one at a time to create a closure. In
 contrast, C functions receive their arguments all at once. The equivalent C
 function type is the following:
 
-<link rel="import" href="code/ffi/return_c_frag.h" />
+```
+int uncurried_C(int, int);
+```
 
 and the arguments must always be supplied together:
 
-<link rel="import" href="code/ffi/return_c_frag.c" />
+```
+uncurried_C(3, 4);
+```
 
 A C function that's written in curried style looks very different:
 
-<link rel="import" href="code/ffi/return_c_uncurried.c" />
+```
+/* A function that accepts an int, and returns a function
+   pointer that accepts a second int and returns an int. */
+typedef int (function_t)(int);
+function_t *curried_C(int);
+
+/* supply both arguments */
+curried_C(3)(4);
+
+/* supply one argument at a time */
+function_t *f = curried_C(3); f(4);
+```
 
 The OCaml type of `uncurried_C` when bound by Ctypes is `int -> int -> int`:
 a two-argument function. The OCaml type of `curried_C` when bound by 
@@ -511,7 +842,20 @@ Arrays in C are contiguous blocks of the same type of value. Any of the basic
 types defined previously can be allocated as blocks via the `Array` module:
 [arrays/definition of]{.idx}[structs and unions/array definition]{.idx}
 
-<link rel="import" href="code/ctypes/ctypes.mli" part="5" />
+```ocaml
+module Array : sig
+  type 'a t = 'a array
+
+  val get : 'a t -> int -> 'a
+  val set : 'a t -> int -> 'a -> unit
+  val of_list : 'a typ -> 'a list -> 'a t
+  val to_list : 'a t -> 'a list
+  val length : 'a t -> int
+  val start : 'a t -> 'a ptr
+  val from_ptr : 'a ptr -> int -> 'a t
+  val make : 'a typ -> ?initial:'a -> int -> 'a t
+end
+```
 
 The array functions are similar to those in the standard library `Array`
 module except that they operate on arrays stored using the flat C
@@ -564,20 +908,45 @@ passed in as a function pointer. The signature for `qsort`
 is:[functions/passing to C]{.idx}[foreign function interface (FFI)/passing
 functions to C]{.idx}
 
-<link rel="import" href="code/ffi/qsort/qsort.h" />
+```
+void qsort(void *base, size_t nmemb, size_t size,
+           int(*compar)(const void *, const void *));
+```
 
 C programmers often use `typedef` to make type definitions involving function
 pointers easier to read. Using a typedef, the type of `qsort` looks a little
 more palatable:
 
-<link rel="import" href="code/ffi/qsort/qsort_typedef.h" />
+```
+typedef int(compare_t)(const void *, const void *);
+
+void qsort(void *base, size_t nmemb, size_t size, compare_t *);
+```
 
 This also happens to be a close mapping to the corresponding Ctypes
 definition. Since type descriptions are regular values, we can just use 
 `let` in place of `typedef` and end up with working OCaml bindings to
 `qsort`:
 
-<link rel="import" href="code/ffi/qsort.mlt" part="1" />
+```ocaml
+open Ctypes ;;
+
+open PosixTypes ;;
+
+open Foreign ;;
+
+let compare_t = ptr void @-> ptr void @-> returning int ;;
+:: val compare_t : (unit Ctypes_static.ptr -> unit Ctypes_static.ptr -> int) fn =
+::   int(void*, void*)
+let qsort = foreign "qsort"
+              (ptr void @-> size_t @-> size_t @->
+               funptr compare_t @-> returning void) ;;
+:: val qsort :
+::   unit Ctypes_static.ptr ->
+::   size_t ->
+::   size_t -> (unit Ctypes_static.ptr -> unit Ctypes_static.ptr -> int) -> unit =
+::   <fun>
+```
 
 We only use `compare_t` once (in the `qsort` definition), so you can choose
 to inline it in the OCaml code if you prefer. As the type shows, the
@@ -595,19 +964,89 @@ polymorphism in place of the unsafe `void ptr` type.
 The following is a command-line tool that uses the `qsort` binding to sort
 all of the integers supplied on the standard input: [qsort binding]{.idx}
 
-<link rel="import" href="code/ffi/qsort/qsort.ml" />
+```ocaml
+open Core
+open Ctypes
+open PosixTypes
+open Foreign
+
+let compare_t = ptr void @-> ptr void @-> returning int
+
+let qsort = foreign "qsort"
+    (ptr void @-> size_t @-> size_t @-> funptr compare_t @->
+       returning void)
+
+let qsort' cmp arr =
+  let open Unsigned.Size_t in
+  let ty = CArray.element_type arr in
+  let len = of_int (CArray.length arr) in
+  let elsize = of_int (sizeof ty) in
+  let start = to_voidp (CArray.start arr) in
+  let compare l r = cmp (!@ (from_voidp ty l)) (!@ (from_voidp ty r)) in
+  qsort start len elsize compare;
+  arr
+
+let sort_stdin () =
+  In_channel.input_lines In_channel.stdin
+  |> List.map ~f:int_of_string
+  |> CArray.of_list int
+  |> qsort' Int.compare
+  |> CArray.to_list
+  |> List.iter ~f:(fun a -> printf "%d\n" a)
+
+let () =
+  Command.basic_spec ~summary:"Sort integers on standard input"
+    Command.Spec.empty sort_stdin
+  |> Command.run
+```
 
 Compile it in the usual way with *dune* and test it against some input data,
 and also build the inferred interface so we can examine it more closely:
 
-<link rel="import" href="code/ffi/qsort/jbuild" />
+```
+(executable
+  ((name qsort)
+   (libraries (core ctypes.foreign))
+  )
+)
+```
 
-<link rel="import" href="code/ffi/qsort/build_qsort.sh" />
+
+
+```sh
+  $ jbuilder build qsort.exe
+  $ cat input.txt
+  2
+  4
+  1
+  3
+  $ ./_build/default/qsort.exe < input.txt
+  1
+  2
+  3
+  4
+  $ corebuild -pkg ctypes.foreign qsort.inferred.mli
+  ocamlfind ocamldep -package ctypes.foreign -package core -ppx 'ppx-jane -as-ppx' -modules qsort.ml > qsort.ml.depends
+  ocamlfind ocamlc -i -thread -short-paths -package ctypes.foreign -package core -ppx 'ppx-jane -as-ppx' qsort.ml > qsort.inferred.mli
+  $ cp _build/qsort.inferred.mli qsort.mli
+
+```
 
 The inferred interface shows us the types of the raw `qsort` binding and also
 the `qsort'` wrapper function:
 
-<link rel="import" href="code/ffi/qsort/qsort.mli" />
+```ocaml
+val compare_t :
+  (unit Ctypes_static.ptr -> unit Ctypes_static.ptr -> int) Ctypes_static.fn
+val qsort :
+  unit Ctypes_static.ptr ->
+  PosixTypes.size_t ->
+  PosixTypes.size_t ->
+  (unit Ctypes_static.ptr -> unit Ctypes_static.ptr -> int) -> unit
+val qsort' :
+  ('a -> 'a -> int) -> 'a Ctypes_static.carray -> 'a Ctypes_static.carray
+val sort_stdin : unit -> unit
+```
 
 The `qsort'` wrapper function has a much more canonical OCaml interface than
 the raw binding. It accepts a comparator function and a Ctypes array, and
@@ -748,6 +1187,4 @@ The details of using Cstubs are available in the online
 [documentation](https://ocamllabs.github.io/ocaml-ctypes), along with
 instructions on integration with `autoconf` platform portability
 instructions.<a data-type="indexterm" data-startref="INTERffi">&nbsp;</a>
-
-
 

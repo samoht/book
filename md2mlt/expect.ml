@@ -44,11 +44,13 @@ module Chunk = struct
   let dump ppf t = Ppx_sexp_conv_lib.Sexp.pp_hum ppf (sexp_of_t t)
   let pp ppf t =
     let code = code t in
-    Fmt.pf ppf "%s\n" code;
+    Fmt.pf ppf "%s\n" (String.trim code);
     let responses = responses t in
-    List.iter (fun (k, s) -> match k with
-        | OCaml -> Fmt.pf ppf "[%%%%expect ocaml {|%s|}];;" s
-        | Raw   -> Fmt.string ppf s
+    List.iter (fun (k, s) ->
+        let s = String.cuts ~sep:"\n" (String.trim s) in
+        match k with
+        | OCaml -> Fmt.pf ppf ":: %a" Fmt.(list ~sep:(unit "\n:: ") string) s
+        | Raw   -> Fmt.pf ppf "1> %a" Fmt.(list ~sep:(unit "\n1> ") string) s
       ) responses
 end
 

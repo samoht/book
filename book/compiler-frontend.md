@@ -168,16 +168,30 @@ errors]{.idx}
 Here's an example syntax error that we obtain by performing a module
 assignment as a statement instead of as a `let` binding:
 
-<link rel="import" href="code/front-end/broken_module.ml" />
+```ocaml
+let () =
+  module MyString = String;
+  ()
+```
 
 The code results in a syntax error when compiled:
 
-<link rel="import" href="code/front-end/build_broken_module.errsh" />
+```sh
+  $ ocamlc -c broken_module.ml
+  File "broken_module.ml", line 2, characters 2-8:
+  Error: Syntax error
+@@ exit 2
+
+```
 
 The correct version of this source code creates the `MyString` module
 correctly via a local open, and compiles successfully:
 
-<link rel="import" href="code/front-end/fixed_module.ml" />
+```ocaml
+let () =
+  let module MyString = String in
+  ()
+```
 
 The syntax error points to the line and character number of the first token
 that couldn't be parsed. In the broken example, the `module` keyword isn't a
@@ -190,11 +204,32 @@ Sadly, syntax errors do get more inaccurate sometimes, depending on the
 nature of your mistake. Try to spot the deliberate error in the following
 function definitions: [source code/automatically indenting]{.idx}
 
-<link rel="import" href="code/front-end/follow_on_function.ml" />
+```ocaml
+let concat_and_print x y =
+  let v = x ^ y in
+  print_endline v;
+  v;
+
+let add_and_print x y =
+  let v = x + y in
+  print_endline (string_of_int v);
+  v
+
+let () =
+  let _x = add_and_print 1 2 in
+  let _y = concat_and_print "a" "b" in
+  ()
+```
 
 When you compile this file, you'll get a syntax error again:
 
-<link rel="import" href="code/front-end/build_follow_on_function.errsh" />
+```sh
+  $ ocamlc -c follow_on_function.ml
+  File "follow_on_function.ml", line 11, characters 0-3:
+  Error: Syntax error
+@@ exit 2
+
+```
 
 The line number in the error points to the end of the `add_and_print`
 function, but the actual error is at the end of the *first* function
@@ -213,14 +248,49 @@ characters]{.idx}
 Let's run our erroneous file through `ocp-indent` and see how it processes
 it:
 
-<link rel="import" href="code/front-end/indent_follow_on_function.sh" />
+```sh
+  $ ocp-indent follow_on_function.ml
+  let concat_and_print x y =
+    let v = x ^ y in
+    print_endline v;
+    v;
+  
+    let add_and_print x y =
+      let v = x + y in
+      print_endline (string_of_int v);
+      v
+  
+  let () =
+    let _x = add_and_print 1 2 in
+    let _y = concat_and_print "a" "b" in
+    ()
+
+```
 
 The `add_and_print` definition has been indented as if it were part of the
 first `concat_and_print` definition, and the errant semicolon is now much
 easier to spot. We just need to remove that semicolon and rerun `ocp-indent`
 to verify that the syntax is correct:
 
-<link rel="import" href="code/front-end/indent_follow_on_function_fixed.sh" />
+```sh
+  $ ocp-indent follow_on_function_fixed.ml
+  (*TODO: Check contents*)
+  let concat_and_print x y =
+    let v = x ^ y in
+    print_endline v;
+    v
+  
+  let add_and_print x y =
+    let v = x + y in
+    print_endline (string_of_int v);
+    v
+  
+  let () =
+    let _x = add_and_print 1 2 in
+    let _y = concat_and_print "a" "b" in
+    ()
+
+```
 
 The `ocp-indent`[home page](https://github.com/OCamlPro/ocp-indent) documents
 how to integrate it with your favorite editor. All the Core libraries are
@@ -245,7 +315,28 @@ manual pages, and even module dependency graphs that can be viewed using
 Here's a sample of some source code that's been annotated with `ocamldoc`
 comments:
 
-<link rel="import" href="code/front-end/doc.ml" />
+```ocaml
+(** example.ml: The first special comment of the file is the comment 
+    associated with the whole module. *)
+
+(** Comment for exception My_exception. *)
+exception My_exception of (int -> int) * int
+
+(** Comment for type [weather]  *)
+type weather =
+  | Rain of int (** The comment for construtor Rain *)
+  | Sun         (** The comment for constructor Sun *)
+
+(** Find the current weather for a country
+    @author Anil Madhavapeddy
+    @param location The country to get the weather for.
+*)
+let what_is_the_weather_in location =
+  match location with
+  | `Cambridge  -> Rain 100
+  | `New_york   -> Rain 20
+  | `California -> Sun
+```
 
 The `ocamldoc` comments are distinguished by beginning with the double
 asterisk. There are formatting conventions for the contents of the comment to
@@ -255,7 +346,12 @@ as the author of that section of code.
 Try compiling the HTML documentation and UNIX man pages by running `ocamldoc`
 over the source file:
 
-<link rel="import" href="code/front-end/build_ocamldoc.rawsh" />
+```
+$ mkdir -p html man/man3
+$ ocamldoc -html -d html doc.ml
+$ ocamldoc -man -d man/man3 doc.ml
+$ man -M man Doc
+```
 
 You should now have HTML files inside the <em class="filename">html/</em>
 directory and also be able to view the UNIX manual pages held in
@@ -325,18 +421,34 @@ These libraries all extend the language in quite a minimal way by adding a
 generated from that declaration. For example, here's a trivial use of Sexplib
 and Fieldslib:
 
-<link rel="import" href="code/front-end/type_conv_example.ml" />
+```ocaml
+open Sexplib.Std
+
+type t = {
+  foo: int;
+  bar: string
+} [@@deriving sexp, fields]
+```
 
 Compiling this code will normally give you a syntax error if you do so
 without Camlp4, since the `with` keyword isn't normally allowed after a type
 definition:
 
-<link rel="import" href="code/front-end/build_type_conv_without_camlp4.errsh" />
+```sh
+  $ ocamlfind ocamlc -c type_conv_example.ml
+  File "type_conv_example.ml", line 1, characters 5-16:
+  Error: Unbound module Sexplib
+@@ exit 2
+
+```
 
 Now add in the syntax extension packages for Fieldslib and Sexplib, and
 everything will compile again:
 
-<link rel="import" href="code/front-end/build_type_conv_with_camlp4.rawsh" />
+```
+$ ocamlfind ocamlc -c -syntax camlp4o -package sexplib.syntax \
+    -package fieldslib.syntax type_conv_example.ml
+```
 
 We've specified a couple of additional flags here. The `-syntax` flag directs
 `ocamlfind` to add the `-pp` flag to the compiler command line. This flag
@@ -380,7 +492,12 @@ file in your home directory (see
 [this Real World OCaml page](http://realworldocaml.org/install) for more
 information):
 
-<link rel="import" href="code/front-end/camlp4_toplevel.mlt" part="0.5" />
+```ocaml
+#use "topfind" ;;
+
+#camlp4o ;;
+
+```
 
 The first directive loads the `ocamlfind` top-level interface that lets you
 require `ocamlfind` packages (including all their dependent packages). The
@@ -398,7 +515,15 @@ manually define comparison functions for complex type definitions.
 
 Let's see how `comparelib` solves this problem by running it in `utop`:
 
-<link rel="import" href="code/front-end/camlp4_toplevel.mlt" part="1" />
+```ocaml
+#require "comparelib.syntax" ;;
+
+type t = { foo: string; bar : t } ;;
+:: type t = { foo : string; bar : t; }
+type t = { foo: string; bar: t } [@@deriving compare] ;;
+1> Characters 16-22:
+1> Error: Unbound value compare_string
+```
 
 The first definition of `t` is a standard OCaml phrase and results in the
 expected output. The second one includes the `with compare` directive. This
@@ -417,19 +542,54 @@ Let's turn to the command line to obtain the result of the `comparelib`
 transformation instead. Create a file that contains the type declaration from
 earlier:
 
-<link rel="import" href="code/front-end/comparelib_test.ml" />
+```ocaml
+open Core_kernel
+
+type t = {
+  foo: string;
+  bar: t
+} [@@deriving compare]
+```
 
 We need to run the Camlp4 binary with the library paths to Comparelib and
 Type_conv. Let's use a small shell script to wrap this invocation:
 
-<link rel="import" href="code/front-end/camlp4_dump.cmd" />
+```
+#!/bin/sh
+
+OCAMLFIND="ocamlfind query -predicates syntax,preprocessor -r"
+INCLUDE=`$OCAMLFIND -i-format comparelib.syntax`
+ARCHIVES=`$OCAMLFIND -a-format comparelib.syntax`
+camlp4o -printer o $INCLUDE $ARCHIVES $1
+```
 
 The script uses the `ocamlfind` package manager to list the include and
 library paths needed by `comparelib`. It then invokes the `camlp4o`
 preprocessor with these paths and outputs the resulting AST to the standard
 output:
 
-<link rel="import" href="code/front-end/process_comparelib_test.sh" />
+```sh
+  $ ocamlfind ocamlc -package ppx_compare -package core_kernel -dsource -linkpkg comparelib_test.ml
+  open Core_kernel
+  type t = {
+    foo: string ;
+    bar: t }[@@deriving compare]
+  let _ = fun (_ : t) -> ()
+  let rec compare =
+    (fun a__001_ ->
+       fun b__002_ ->
+         if Ppx_compare_lib.phys_equal a__001_ b__002_
+         then 0
+         else
+           (match compare_string a__001_.foo b__002_.foo with
+            | 0 -> compare a__001_.bar b__002_.bar
+            | n -> n) : t -> t -> int)
+  let _ = compare
+  File "comparelib_test.ml", line 1:
+  Error: Could not find the .cmi file for interface comparelib_test.mli.
+@@ exit 2
+
+```
 
 The output contains the original type definition accompanied by some
 automatically generated code that implements an explicit comparison function
@@ -461,12 +621,18 @@ then write a `unit` binding explicitly instead. This will cause a type error
 if the expression changes type in the future (e.g., due to code refactoring):
 :::
 
-
-<link rel="import" href="code/front-end/let_unit.syntax" />
+```
+let () = <expr>
+```
 
 If the expression has a different type, then write it explicitly:
 
-<link rel="import" href="code/front-end/let_notunit.ml" />
+```ocaml
+let (_:some_type) = <expr>
+let () = ignore (<expr> : some_type)
+)(* if the expression returns a unit Deferred.t *)
+let () = don't_wait_for (<expr>
+```
 
 The last one is used to ignore Async expressions that should run in the
 background rather than blocking in the current thread.
@@ -477,7 +643,11 @@ right away. This would normally generate an "unused value" compiler warning.
 These warnings are suppressed for any variable name that's prepended with an
 underscore:
 
-<link rel="import" href="code/front-end/unused_var.ml" />
+```ocaml
+let fn x y =
+  let _z = x + y in
+  ()
+```
 
 Although you don't use `_z` in your code, this will never generate an unused
 variable warning.
@@ -490,12 +660,27 @@ signatures, too. Copy the earlier type definition into a
 <span class="keep-together">content</span>:[signatures/preprocessing module
 signatures]{.idx}[modules/preprocessing signatures of]{.idx}
 
-<link rel="import" href="code/front-end/comparelib_test.mli" />
+```ocaml
+open Core_kernel
+
+type t = {
+  foo: string;
+  bar: t
+} [@@deriving compare]
+```
 
 If you rerun the Camlp4 dumper script now, you'll see that different code is
 produced for signature files:
 
-<link rel="import" href="code/front-end/process_comparelib_interface.sh" />
+```sh
+  $ ocamlfind ocamlc -package ppx_compare -package core_kernel -dsource -linkpkg comparelib_test.mli
+  open Core_kernel
+  type t = {
+    foo: string ;
+    bar: t }[@@deriving compare]
+  include sig [@@@ocaml.warning "-32"] val compare : t -> t -> int end
+
+```
 
 The external signature generated by `comparelib` is much simpler than the
 actual code. Running Camlp4 directly on the original source code lets you see
@@ -597,13 +782,18 @@ toplevel. It's also possible to generate type signatures for an entire file
 by asking the compiler to do the work for you. Create a file with a single
 type definition and value:
 
-<link rel="import" href="code/front-end/typedef.ml" />
+```ocaml
+type t = Foo | Bar
+let v = Foo
+```
 
 Now run the compiler with the `-i` flag to infer the type signature for that
 file. This runs the type checker but doesn't compile the code any further
 after displaying the interface to the standard output:
 
-<link rel="import" href="code/front-end/infer_typedef.sh" />
+```sh
+
+```
 
 The output is the default signature for the module that represents the input
 file. It's often useful to redirect this output to an `mli` file to give you
@@ -619,11 +809,35 @@ The compiler makes sure that your `ml` and `mli` files have compatible
 signatures. The type checker throws an immediate error if this isn't the
 case:
 
-<link rel="import" href="code/front-end/conflicting_interface.ml" />
+```ocaml
+type t = Foo
+```
 
-<link rel="import" href="code/front-end/conflicting_interface.mli" />
 
-<link rel="import" href="code/front-end/conflicting_interfaces.errsh" />
+
+```ocaml
+type t = Bar
+```
+
+
+
+```sh
+  $ ocamlc -c conflicting_interface.mli conflicting_interface.ml
+  File "conflicting_interface.ml", line 1:
+  Error: The implementation conflicting_interface.ml
+         does not match the interface conflicting_interface.cmi:
+         Type declarations do not match:
+           type t = Foo
+         is not included in
+           type t = Bar
+         File "conflicting_interface.mli", line 1, characters 0-12:
+           Expected declaration
+         File "conflicting_interface.ml", line 1, characters 0-12:
+           Actual declaration
+         Fields number 1 have different names, Foo and Bar.
+@@ exit 2
+
+```
 
 ::: {.allow_break data-type=note}
 #### Which Comes First: The ml or the mli?
@@ -708,12 +922,50 @@ variant types/type checking and]{.idx}[row polymorphism]{.idx}
 For instance, consider this broken example that expresses some simple
 algebraic operations over integers:
 
-<link rel="import" href="code/front-end/broken_poly.ml" />
+```ocaml
+let rec algebra =
+  function
+  | `Add (x,y) -> (algebra x) + (algebra y)
+  | `Sub (x,y) -> (algebra x) - (algebra y)
+  | `Mul (x,y) -> (algebra x) * (algebra y)
+  | `Num x     -> x
+
+let _ =
+  algebra (
+    `Add (
+      (`Num 0),
+      (`Sub (
+          (`Num 1),
+          (`Mul (
+              (`Nu 3),(`Num 2)
+            ))
+        ))
+    ))
+```
 
 There's a single character typo in the code so that it uses `Nu` instead of
 `Num`. The resulting type error is impressive:
 
-<link rel="import" href="code/front-end/build_broken_poly.errsh" />
+```sh
+  $ ocamlc -c broken_poly.ml
+  File "broken_poly.ml", line 9, characters 10-154:
+  Error: This expression has type
+           [> `Add of
+                ([< `Add of 'a * 'a
+                  | `Mul of 'a * 'a
+                  | `Num of int
+                  | `Sub of 'a * 'a
+                  > `Num ]
+                 as 'a) *
+                [> `Sub of 'a * [> `Mul of [> `Nu of int ] * [> `Num of int ] ] ] ]
+         but an expression was expected of type
+           [< `Add of 'a * 'a | `Mul of 'a * 'a | `Num of int | `Sub of 'a * 'a
+            > `Num ]
+           as 'a
+         The second variant type does not allow tag(s) `Nu
+@@ exit 2
+
+```
 
 The type error is perfectly accurate, but rather verbose and with a line
 number that doesn't point to the exact location of the incorrect variant
@@ -728,13 +980,47 @@ don't match up, outputs the difference as best it can.
 Let's see what happens with an explicit type annotation to help the compiler
 out:
 
-<link rel="import" href="code/front-end/broken_poly_with_annot.ml" />
+```ocaml
+type t = [
+  | `Add of t * t
+  | `Sub of t * t
+  | `Mul of t * t
+  | `Num of int
+]
+
+let rec algebra (x:t) =
+  match x with
+  | `Add (x,y) -> (algebra x) + (algebra y)
+  | `Sub (x,y) -> (algebra x) - (algebra y)
+  | `Mul (x,y) -> (algebra x) * (algebra y)
+  | `Num x     -> x
+
+let _ =
+  algebra (
+    `Add (
+      (`Num 0),
+      (`Sub (
+          (`Num 1),
+          (`Mul (
+              (`Nu 3),(`Num 2)
+            ))
+        ))
+    ))
+```
 
 This code contains exactly the same error as before, but we've added a closed
 type definition of the polymorphic variants, and a type annotation to the
 `algebra` definition. The compiler error we get is much more useful now:
 
-<link rel="import" href="code/front-end/build_broken_poly_with_annot.errsh" />
+```sh
+  $ ocamlc -i broken_poly_with_annot.ml
+  File "broken_poly_with_annot.ml", line 22, characters 14-21:
+  Error: This expression has type [> `Nu of int ]
+         but an expression was expected of type t
+         The second variant type does not allow tag(s) `Nu
+@@ exit 2
+
+```
 
 This error points directly to the correct line number that contains the typo.
 Once you fix the problem, you can remove the manual annotations if you prefer
@@ -768,11 +1054,26 @@ The principality check only affects a few language features:
 Here's an example of principality warnings when used with record
 disambiguation.
 
-<link rel="import" href="code/front-end/non_principal.ml" />
+```ocaml
+type s = { foo: int; bar: unit }
+type t = { foo: int }
+
+let f x =
+  x.bar;
+  x.foo
+```
 
 Inferring the signature with `-principal` will show you a new warning:
 
-<link rel="import" href="code/front-end/build_non_principal.sh" />
+```sh
+  $ ocamlc -i -principal non_principal.ml
+  File "non_principal.ml", line 6, characters 4-7:
+  Warning 18: this type-based field disambiguation is not principal.
+  type s = { foo : int; bar : unit; }
+  type t = { foo : int; }
+  val f : s -> int
+
+```
 
 This example isn't principal, since the inferred type for `x.foo` is guided
 by the inferred type of `x.bar`, whereas principal typing requires that each
@@ -783,19 +1084,42 @@ removed from the definition of `f`, its argument would be of type `t` and not
 You can fix this either by permuting the order of the type declarations, or
 by adding an explicit type annotation:
 
-<link rel="import" href="code/front-end/principal.ml" />
+```ocaml
+type s = { foo: int; bar: unit }
+type t = { foo: int }
+
+let f (x:s) =
+  x.bar;
+  x.foo
+```
 
 There is now no ambiguity about the inferred types, since we've explicitly
 given the argument a type, and the order of inference of the subexpressions
 no longer matters.
 
-<link rel="import" href="code/front-end/build_principal.sh" />
+```sh
+  $ ocamlc -i -principal principal.ml
+  type s = { foo : int; bar : unit; }
+  type t = { foo : int; }
+  val f : s -> int
+
+```
 
 The `ocamlbuild` equivalent is to add the tag `principal` to your build. The
 *corebuild* wrapper script actually adds this by default, but it does no harm
 to explicitly repeat it:
 
-<link rel="import" href="code/front-end/build_principal_corebuild.sh" />
+```sh
+  $ corebuild -no-hygiene -tag principal principal.cmi non_principal.cmi
+  ocamlfind ocamldep -package core -ppx 'ppx-jane -as-ppx' -modules principal.ml > principal.ml.depends
+  ocamlfind ocamlc -c -w A-4-33-40-41-42-43-34-44 -strict-sequence -g -bin-annot -short-paths -principal -thread -package core -ppx 'ppx-jane -as-ppx' -o principal.cmo principal.ml
+  ocamlfind ocamldep -package core -ppx 'ppx-jane -as-ppx' -modules non_principal.ml > non_principal.ml.depends
+  ocamlfind ocamlc -c -w A-4-33-40-41-42-43-34-44 -strict-sequence -g -bin-annot -short-paths -principal -thread -package core -ppx 'ppx-jane -as-ppx' -o non_principal.cmo non_principal.ml
+  + ocamlfind ocamlc -c -w A-4-33-40-41-42-43-34-44 -strict-sequence -g -bin-annot -short-paths -principal -thread -package core -ppx 'ppx-jane -as-ppx' -o non_principal.cmo non_principal.ml
+  File "non_principal.ml", line 6, characters 4-7:
+  Warning 18: this type-based field disambiguation is not principal.
+
+```
 
 Ideally, all code should systematically use `-principal`. It reduces variance
 in type inference and enforces the notion of a single known type. However,
@@ -845,16 +1169,26 @@ and modules can be explained directly in terms of the module system.
 
 Create a file called `alice.ml` with the following contents:
 
-<link rel="import" href="code/front-end/alice.ml" />
+```ocaml
+let friends = [ Bob.name ]
+```
 
 and a corresponding signature file:
 
-<link rel="import" href="code/front-end/alice.mli" />
+```ocaml
+val friends : Bob.t list
+```
 
 These two files are exactly analogous to including the following code
 directly in another module that references `Alice`:
 
-<link rel="import" href="code/front-end/alice_combined.ml" />
+```ocaml
+module Alice : sig
+  val friends : Bob.t list
+end = struct
+  let friends = [ Bob.name ]
+end
+```
 
 #### Defining a module search path {#defining-a-module-search-path}
 
@@ -900,7 +1234,17 @@ corruption and crashes.
 OCaml guards against this by recording a MD5 checksum in every `cmi`. Let's
 examine our earlier `typedef.ml` more closely:
 
-<link rel="import" href="code/front-end/typedef_objinfo.sh" />
+```sh
+  $ ocamlc -c typedef.ml
+  $ ocamlobjinfo typedef.cmi
+  File typedef.cmi
+  Unit name: Typedef
+  Interfaces imported:
+  	cdd43318ee9dd1b187513a4341737717	Typedef
+  	9b04ecdc97e5102c1d342892ef7ad9a2	Pervasives
+  	79ae8c0eb753af6b441fe05456c7970b	CamlinternalFormatBasics
+
+```
 
 `ocamlobjinfo` examines the compiled interface and displays what other
 compilation units it depends on. In this case, we don't use any external
@@ -916,7 +1260,13 @@ hashes means that a compilation unit with the same module name may have
 conflicting type signatures in different modules. The compiler will reject
 such programs with an error similar to this:
 
-<link rel="import" href="code/front-end/inconsistent_compilation_units.rawsh" />
+```
+$ ocamlc -c foo.ml
+File "foo.ml", line 1, characters 0-1:
+Error: The files /home/build/bar.cmi
+       and /usr/lib/ocaml/map.cmi make inconsistent assumptions
+       over interface Map
+```
 
 This hash check is very conservative, but ensures that separate compilation
 remains type-safe all the way up to the final link phase. Your build system
@@ -954,12 +1304,26 @@ to be packed under module `X`. There are special rules in `ocamlbuild` that
 tell it how to map `%.mlpack` files to the packed `%.cmx` or `%.cmo`
 equivalent:
 
-<link rel="import" href="code/packing/show_files.sh" />
+```sh
+  $ cat A.ml
+  let v = "hello"
+  $ cat B.ml
+  let w = 42
+  $ cat _tags
+  <*.cmx> and not "X.cmx": for-pack(X)
+  $ cat X.mlpack
+  A
+  B
+
+```
 
 You can now run *corebuild* to build the `X.cmx` file directly, but let's
 create a new module to link against `X` to complete the example:
 
-<link rel="import" href="code/packing/test.ml" />
+```ocaml
+let v = X.A.v
+let w = X.B.w
+```
 
 You can now compile this test module and see that its inferred interface is
 the result of using the packed contents of `X`. We further verify this by
@@ -967,7 +1331,29 @@ examining the imported interfaces in `Test` and confirming that neither
 `A` nor `B` are mentioned in there and that only the packed `X` module is
 used:
 
-<link rel="import" href="code/packing/build_test.sh" />
+```sh
+  $ corebuild test.inferred.mli test.cmi
+  ocamlfind ocamldep -package core -ppx 'ppx-jane -as-ppx' -modules test.ml > test.ml.depends
+  ocamlfind ocamldep -package core -ppx 'ppx-jane -as-ppx' -modules A.ml > A.ml.depends
+  ocamlfind ocamldep -package core -ppx 'ppx-jane -as-ppx' -modules B.ml > B.ml.depends
+  ocamlfind ocamlc -c -w A-4-33-40-41-42-43-34-44 -strict-sequence -g -bin-annot -short-paths -thread -package core -ppx 'ppx-jane -as-ppx' -o A.cmo A.ml
+  ocamlfind ocamlc -c -w A-4-33-40-41-42-43-34-44 -strict-sequence -g -bin-annot -short-paths -thread -package core -ppx 'ppx-jane -as-ppx' -o B.cmo B.ml
+  ocamlfind ocamlc -pack -g -bin-annot A.cmo B.cmo -o X.cmo
+  ocamlfind ocamlc -i -thread -short-paths -package core -ppx 'ppx-jane -as-ppx' test.ml > test.inferred.mli
+  ocamlfind ocamlc -c -w A-4-33-40-41-42-43-34-44 -strict-sequence -g -bin-annot -short-paths -thread -package core -ppx 'ppx-jane -as-ppx' -o test.cmo test.ml
+  $ cat _build/test.inferred.mli
+  val v : string
+  val w : int
+  $ ocamlobjinfo _build/test.cmi
+  File _build/test.cmi
+  Unit name: Test
+  Interfaces imported:
+  	7b1e33d4304b9f8a8e844081c001ef22	Test
+  	27a343af5f1904230d1edc24926fde0e	X
+  	9b04ecdc97e5102c1d342892ef7ad9a2	Pervasives
+  	79ae8c0eb753af6b441fe05456c7970b	CamlinternalFormatBasics
+
+```
 
 ::: {data-type=warning}
 #### Packing and Search Paths
@@ -1000,12 +1386,23 @@ in]{.idx}
 There's one downside to this approach: type errors suddenly get much more
 verbose. We can see this if you run the vanilla OCaml toplevel (not `utop`).
 
-<link rel="import" href="code/front-end/short_paths_1.rawsh" />
+```
+$ ocaml
+# List.map print_endline "" ;;
+Error: This expression has type string but an expression was expected of type
+         string list
+```
 
 This type error without `Core` has a straightforward type error. When we
 switch to Core, though, it gets more verbose:
 
-<link rel="import" href="code/front-end/short_paths_2.rawsh" />
+```
+$ ocaml
+# open Core ;;
+# List.map ~f:print_endline "" ;;
+Error: This expression has type string but an expression was expected of type
+         'a Core.List.t = 'a list
+```
 
 The default `List` module in OCaml is overridden by `Core.List`. The compiler
 does its best to show the type equivalence, but at the cost of a more verbose
@@ -1017,7 +1414,13 @@ path and use that as the preferred output type. The option is activated by
 passing `-short-paths` to the compiler, and works on the toplevel, too.[short
 paths heuristic]{.idx}
 
-<link rel="import" href="code/front-end/short_paths_3.rawsh" />
+```
+$ ocaml -short-paths
+# open Core;;
+# List.map ~f:print_endline "foo";;
+Error: This expression has type string but an expression was expected of type
+         'a list
+```
 
 The `utop` enhanced toplevel activates short paths by default, which is why
 we have not had to do this before in our interactive examples. However, the
@@ -1054,7 +1457,10 @@ One such command-line tool to display autocompletion information in your
 editor is `ocp-index`. Install it via OPAM as
 follows:[autocompletion]{.idx}[ocp-index]{.idx}
 
-<link rel="import" href="code/front-end/install_ocp_index.rawsh" />
+```
+$ opam install ocp-index
+$ ocp-index
+```
 
 Let's refer back to our Ncurses binding example from the beginning of
 [Foreign Function Interface](foreign-function-interface.html#foreign-function-interface){data-type=xref}.
@@ -1062,7 +1468,28 @@ This module defined bindings for the Ncurses library. First, compile the
 interfaces with `-bin-annot` so that we can obtain the `cmt` and `cmti`
 files, and then run `ocp-index` in completion mode:
 
-<link rel="import" href="code/ocp-index/index_ncurses.sh" />
+```sh
+  $ (cd ../ffi/ncurses && corebuild -pkg ctypes.foreign -tag bin_annot ncurses.cmi)
+  ocamlfind ocamldep -package ctypes.foreign -package core -ppx 'ppx-jane -as-ppx' -modules ncurses.mli > ncurses.mli.depends
+  ocamlfind ocamlc -c -w A-4-33-40-41-42-43-34-44 -strict-sequence -g -bin-annot -short-paths -thread -package ctypes.foreign -package core -ppx 'ppx-jane -as-ppx' -o ncurses.cmi ncurses.mli
+  $ ocp-index complete -I ../ffi Ncur
+  Ncurses module
+  $ ocp-index complete -I ../ffi Ncurses.a
+  Ncurses.addstr val string -> unit
+  $ ocp-index complete -I ../ffi Ncurses.
+  Ncurses.window val window Ctypes.typ
+  Ncurses.initscr val unit -> window
+  Ncurses.endwin val unit -> unit
+  Ncurses.refresh val unit -> unit
+  Ncurses.wrefresh val window -> unit
+  Ncurses.newwin val int -> int -> int -> int -> window
+  Ncurses.mvwaddch val window -> int -> int -> char -> unit
+  Ncurses.addstr val string -> unit
+  Ncurses.mvwaddstr val window -> int -> int -> string -> unit
+  Ncurses.box val window -> char -> char -> unit
+  Ncurses.cbreak val unit -> int
+
+```
 
 You need to pass `ocp-index` a set of directories to search for `cmt` files
 in, and a fragment of text to autocomplete. As you can imagine,
@@ -1079,12 +1506,55 @@ tool.[flags]{.idx}
 
 We'll use our toy `typedef.ml` again:
 
-<link rel="import" href="code/front-end/typedef.ml" />
+```ocaml
+type t = Foo | Bar
+let v = Foo
+```
 
 Let's first look at the untyped syntax tree that's generated from the parsing
 phase:
 
-<link rel="import" href="code/front-end/parsetree_typedef.sh" />
+```sh
+  $ ocamlc -dparsetree typedef.ml 2>&1
+  [
+    structure_item (typedef.ml[1,0+0]..[1,0+18])
+      Pstr_type Rec
+      [
+        type_declaration "t" (typedef.ml[1,0+5]..[1,0+6]) (typedef.ml[1,0+0]..[1,0+18])
+          ptype_params =
+            []
+          ptype_cstrs =
+            []
+          ptype_kind =
+            Ptype_variant
+              [
+                (typedef.ml[1,0+9]..[1,0+12])
+                  "Foo" (typedef.ml[1,0+9]..[1,0+12])
+                  []
+                  None
+                (typedef.ml[1,0+13]..[1,0+18])
+                  "Bar" (typedef.ml[1,0+15]..[1,0+18])
+                  []
+                  None
+              ]
+          ptype_private = Public
+          ptype_manifest =
+            None
+      ]
+    structure_item (typedef.ml[2,19+0]..[2,19+11])
+      Pstr_value Nonrec
+      [
+        <def>
+          pattern (typedef.ml[2,19+4]..[2,19+5])
+            Ppat_var "v" (typedef.ml[2,19+4]..[2,19+5])
+          expression (typedef.ml[2,19+8]..[2,19+11])
+            Pexp_construct "Foo" (typedef.ml[2,19+8]..[2,19+11])
+            None
+      ]
+  ]
+  
+
+```
 
 This is rather a lot of output for a simple two-line program, but it shows
 just how much structure the OCaml parser generates even from a small source
@@ -1097,7 +1567,47 @@ hasn't been type checked yet, so the raw tokens are all included.
 The typed AST that is normally output as a compiled `cmt` file can be
 displayed in a more developer-readable form via the `-dtypedtree` option:
 
-<link rel="import" href="code/front-end/typedtree_typedef.sh" />
+```sh
+  $ ocamlc -dtypedtree typedef.ml 2>&1
+  [
+    structure_item (typedef.ml[1,0+0]..typedef.ml[1,0+18])
+      Tstr_type Rec
+      [
+        type_declaration t/1002 (typedef.ml[1,0+0]..typedef.ml[1,0+18])
+          ptype_params =
+            []
+          ptype_cstrs =
+            []
+          ptype_kind =
+            Ttype_variant
+              [
+                (typedef.ml[1,0+9]..typedef.ml[1,0+12])
+                  Foo/1003
+                  []
+                  None
+                (typedef.ml[1,0+13]..typedef.ml[1,0+18])
+                  Bar/1004
+                  []
+                  None
+              ]
+          ptype_private = Public
+          ptype_manifest =
+            None
+      ]
+    structure_item (typedef.ml[2,19+0]..typedef.ml[2,19+11])
+      Tstr_value Nonrec
+      [
+        <def>
+          pattern (typedef.ml[2,19+4]..typedef.ml[2,19+5])
+            Tpat_var "v/1005"
+          expression (typedef.ml[2,19+8]..typedef.ml[2,19+11])
+            Texp_construct "Foo"
+            []
+      ]
+  ]
+  
+
+```
 
 The typed AST is more explicit than the untyped syntax tree. For instance,
 the type declaration has been given a unique name (`t/1008`), as has the
@@ -1116,3 +1626,4 @@ files with common editors such as Emacs or Vim. The best of these is
 autocompletion, displays inferred types and can build and display errors
 directly from within your editor. There are instructions available on its
 homepage for configuring Merlin with your favorite editor.
+

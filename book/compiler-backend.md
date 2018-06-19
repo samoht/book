@@ -41,11 +41,33 @@ code/pattern matching optimization]{.idx}
 Let's start by creating a straightforward exhaustive pattern match using four
 normal variants:
 
-<link rel="import" href="code/back-end/pattern_monomorphic_large.ml" />
+```ocaml
+type t = | Alice | Bob | Charlie | David
+
+let test v =
+  match v with
+  | Alice   -> 100
+  | Bob     -> 101
+  | Charlie -> 102
+  | David   -> 103
+```
 
 The lambda output for this code looks like this:
 
-<link rel="import" href="code/back-end/lambda_for_pattern_monomorphic_large.sh" />
+```sh
+  $ ocamlc -dlambda -c pattern_monomorphic_large.ml 2>&1
+  (setglobal Pattern_monomorphic_large!
+    (let
+      (test/1007 =
+         (function v/1008
+           (switch* v/1008
+            case int 0: 100
+            case int 1: 101
+            case int 2: 102
+            case int 3: 103)))
+      (makeblock 0 test/1007)))
+
+```
 
 It's not important to understand every detail of this internal form, and it
 is explicitly undocumented since it can change across compiler revisions.
@@ -73,23 +95,56 @@ The compiler computes a jump table in order to handle all four cases. If we
 drop the number of variants to just two, then there's no need for the
 complexity of computing this table:
 
-<link rel="import" href="code/back-end/pattern_monomorphic_small.ml" />
+```ocaml
+type t = | Alice | Bob 
+
+let test v =
+  match v with
+  | Alice   -> 100
+  | Bob     -> 101
+```
 
 The lambda output for this code is now quite different:
 
-<link rel="import" href="code/back-end/lambda_for_pattern_monomorphic_small.sh" />
+```sh
+  $ ocamlc -dlambda -c pattern_monomorphic_small.ml 2>&1
+  (setglobal Pattern_monomorphic_small!
+    (let (test/1005 = (function v/1006 (if (!= v/1006 0) 101 100)))
+      (makeblock 0 test/1005)))
+
+```
 
 The compiler emits simpler conditional jumps rather than setting up a jump
 table, since it statically determines that the range of possible variants is
 small enough. Finally, let's look at the same code, but with polymorphic
 variants instead of normal variants:
 
-<link rel="import" href="code/back-end/pattern_polymorphic.ml" />
+```ocaml
+let test v =
+  match v with
+  | `Alice   -> 100
+  | `Bob     -> 101
+  | `Charlie -> 102
+  | `David   -> 103
+  | `Eve     -> 104
+```
 
 The lambda form for this also shows up the runtime representation of
 polymorphic variants:
 
-<link rel="import" href="code/back-end/lambda_for_pattern_polymorphic.sh" />
+```sh
+  $ ocamlc -dlambda -c pattern_polymorphic.ml 2>&1
+  (setglobal Pattern_polymorphic!
+    (let
+      (test/1002 =
+         (function v/1003
+           (if (!= v/1003 3306965)
+             (if (>= v/1003 482771474) (if (>= v/1003 884917024) 100 102)
+               (if (>= v/1003 3457716) 104 103))
+             101)))
+      (makeblock 0 test/1002)))
+
+```
 
 We mentioned in [Variants](variants.html#variants){data-type=xref} that
 pattern matching over polymorphic variants is slightly less efficient, and it
@@ -130,14 +185,85 @@ You'll need to `opam install core_bench` to get the library:[pattern
 matching/benchmarking of]{.idx}[lambda form code/pattern matching
 benchmarking]{.idx}
 
-<link rel="import" href="code/back-end/bench_patterns/bench_patterns.ml" />
+```ocaml
+open Core
+open Core_bench
+
+type t = | Alice | Bob
+type s = | A | B | C | D | E
+
+let polymorphic_pattern () =
+  let test v =
+    match v with
+    | `Alice   -> 100
+    | `Bob     -> 101
+    | `Charlie -> 102
+    | `David   -> 103
+    | `Eve     -> 104
+  in
+  List.iter ~f:(fun v -> ignore(test v))
+    [`Alice; `Bob; `Charlie; `David]
+
+let monomorphic_pattern_small () =
+  let test v =
+    match v with
+    | Alice   -> 100
+    | Bob     -> 101 in
+  List.iter ~f:(fun v -> ignore(test v))
+    [ Alice; Bob ]
+
+let monomorphic_pattern_large () =
+  let test v =
+    match v with
+    | A       -> 100
+    | B       -> 101
+    | C       -> 102
+    | D       -> 103
+    | E       -> 104
+  in
+  List.iter ~f:(fun v -> ignore(test v))
+    [ A; B; C; D ]
+
+let tests = [
+  "Polymorphic pattern", polymorphic_pattern;
+  "Monomorphic larger pattern", monomorphic_pattern_large;
+  "Monomorphic small pattern", monomorphic_pattern_small;
+]
+
+let () =
+  List.map tests ~f:(fun (name,test) -> Bench.Test.create ~name test)
+  |> Bench.make_command
+  |> Command.run
+```
 
 Building and executing this example will run for around 30 seconds by
 default, and you'll see the results summarized in a neat table:
 
-<link rel="import" href="code/back-end/bench_patterns/jbuild" />
+```
+(executable
+  ((name bench_patterns)
+   (modules bench_patterns)
+   (libraries (core_bench))
+  )
+)
+```
 
-<link rel="import" href="code/back-end/bench_patterns/run_bench_patterns.sh" />
+
+
+```sh
+  $ jbuilder build bench_patterns.exe
+%% --non-deterministic [skip]
+  $ ./_build/default/bench_patterns.exe -ascii -quota 0.25
+  Estimated testing time 750ms (3 benchmarks x 250ms). Change using -quota SECS.
+                                                        
+    Name                         Time/Run   Percentage  
+   ---------------------------- ---------- ------------ 
+    Polymorphic pattern           24.93ns       89.45%  
+    Monomorphic larger pattern    27.88ns      100.00%  
+    Monomorphic small pattern     10.84ns       38.90%  
+                                                        
+
+```
 
 These results confirm the performance hypothesis that we obtained earlier by
 inspecting the lambda code. The shortest running time comes from the small
@@ -192,7 +318,27 @@ and environment and global data. You can display the bytecode instructions in
 textual form via `-dinstr`. Try this on one of our earlier pattern-matching
 examples:
 
-<link rel="import" href="code/back-end/instr_for_pattern_monomorphic_small.sh" />
+```sh
+  $ ocamlc -dinstr pattern_monomorphic_small.ml 2>&1
+  	branch L2
+  L1:	acc 0
+  	push
+  	const 0
+  	neqint
+  	branchifnot L3
+  	const 101
+  	return 1
+  L3:	const 100
+  	return 1
+  L2:	closure L1, 0
+  	push
+  	acc 0
+  	makeblock 1, 0
+  	pop 1
+  	setglobal Pattern_monomorphic_small!
+  
+
+```
 
 The preceding bytecode has been simplified from the lambda form into a set of
 simple instructions that are executed serially by the interpreter.
@@ -263,7 +409,10 @@ other libraries that aren't loaded by default.
 Information about these extra libraries can be specified while linking a
 bytecode archive:
 
-<link rel="import" href="code/back-end-embed/link_dllib.rawsh" />
+```
+$ ocamlc -a -o mylib.cma a.cmo b.cmo -dllib -lmylib
+
+```
 
 The `dllib` flag embeds the arguments in the archive file. Any subsequent
 packages linking this archive will also include the extra C linking
@@ -274,7 +423,10 @@ You can also generate a complete standalone executable that bundles the
 `ocamlrun` interpreter with the bytecode in a single binary. This is known as
 a *custom runtime* mode and is built as follows: [custom runtime mode]{.idx}
 
-<link rel="import" href="code/back-end-embed/link_custom.rawsh" />
+```
+$ ocamlc -a -o mylib.cma -custom a.cmo b.cmo -cclib -lmylib
+
+```
 
 OCamlbuild takes care of many of these details with its built-in rules. The
 `%.byte` rule that you've been using throughout the book builds a bytecode
@@ -308,30 +460,67 @@ fits together.
 
 Create two OCaml source files that contain a single print line:
 
-<link rel="import" href="code/back-end-embed/embed_me1.ml" />
+```ocaml
+let () = print_endline "hello embedded world 1"
+```
 
-<link rel="import" href="code/back-end-embed/embed_me2.ml" />
+
+
+```ocaml
+let () = print_endline "hello embedded world 2"
+```
 
 Next, create a C file to be your main entry point:
 
-<link rel="import" href="code/back-end-embed/main.c" />
+```
+#include <stdio.h>
+#include <caml/alloc.h>
+#include <caml/mlvalues.h>
+#include <caml/memory.h>
+#include <caml/callback.h>
+
+int 
+main (int argc, char **argv)
+{
+  printf("Before calling OCaml\n");
+  fflush(stdout);
+  caml_startup (argv);
+  printf("After calling OCaml\n");
+  return 0;
+}
+```
 
 Now compile the OCaml files into a standalone object file:
 
-<link rel="import" href="code/back-end-embed/build_embed.sh" part="o" />
+```sh
+  $ rm -f embed_out.c
+  $ ocamlc -output-obj -o embed_out.o embed_me1.ml embed_me2.ml
+
+```
 
 After this point, you no longer need the OCaml compiler, as `embed_out.o` has
 all of the OCaml code compiled and linked into a single object file. Compile
 an output binary using `gcc` to test this out:
 
-<link rel="import" href="code/back-end-embed/build_embed_binary.rawsh" />
+```
+$ gcc -fPIC -Wall -I`ocamlc -where` -L`ocamlc -where` -ltermcap -lm -ldl \
+  -o finalbc.native main.c embed_out.o -lcamlrun
+$ ./finalbc.native
+Before calling OCaml
+hello embedded world 1
+hello embedded world 2
+After calling OCaml
+```
 
 You can inspect the commands that `ocamlc` is invoking by adding `-verbose`
 to the command line to help figure out the GCC command line if you get stuck.
 You can even obtain the C source code to the `-output-obj` result by
 specifying a `.c` output file extension instead of the `.o` we used earlier:
 
-<link rel="import" href="code/back-end-embed/build_embed.sh" part="c" />
+```sh
+  $ ocamlc -output-obj -o embed_out.c embed_me1.ml embed_me2.ml
+
+```
 
 Embedding OCaml code like this lets you write OCaml that interfaces with any
 environment that works with a C compiler. You can even cross back from the C
@@ -404,12 +593,17 @@ now.[polymorphic comparisons]{.idx}
 First let's create a comparison function where we've explicitly annotated the
 types, so the compiler knows that only integers are being compared:
 
-<link rel="import" href="code/back-end/compare_mono.ml" />
+```ocaml
+let cmp (a:int) (b:int) =
+  if a > b then a else b
+```
 
 Now compile this into assembly and read the resulting `compare_mono.S` file.
 This file extension may be lowercase on some platforms such as Linux:
 
-<link rel="import" href="code/back-end/asm_from_compare_mono.sh" />
+```sh
+
+```
 
 If you've never seen assembly language before, then the contents may be
 rather scary. While you'll need to learn x86 assembly to fully understand it,
@@ -417,7 +611,19 @@ we'll try to give you some basic instructions to spot patterns in this
 section. The excerpt of the implementation of the `cmp` function can be found
 below:
 
-<link rel="import" href="code/back-end/cmp.S" />
+```
+_camlCompare_mono__cmp_1008:
+        .cfi_startproc
+.L101:
+        cmpq    %rbx, %rax
+        jle     .L100
+        ret
+        .align  2
+.L100:
+        movq    %rbx, %rax
+        ret
+        .cfi_endproc
+```
 
 The `_camlCompare_mono__cmp_1008` is an assembly label that has been computed
 from the module name (`Compare_mono`) and the function name (`cmp_1008`). The
@@ -430,12 +636,45 @@ requires both the arguments to be immediate integers to work. Now let's see
 what happens if our OCaml code omits the type annotations and is a
 polymorphic comparison instead:
 
-<link rel="import" href="code/back-end/compare_poly.ml" />
+```ocaml
+let cmp a b =
+  if a > b then a else b
+```
 
 Compiling this code with `-S` results in a significantly more complex
 assembly output for the same function:
 
-<link rel="import" href="code/back-end/compare_poly_asm.S" />
+```
+_camlCompare_poly__cmp_1008:
+        .cfi_startproc
+        subq    $24, %rsp
+        .cfi_adjust_cfa_offset  24
+.L101:
+        movq    %rax, 8(%rsp)
+        movq    %rbx, 0(%rsp)
+        movq    %rax, %rdi
+        movq    %rbx, %rsi
+        leaq    _caml_greaterthan(%rip), %rax
+        call    _caml_c_call
+.L102:
+        leaq    _caml_young_ptr(%rip), %r11
+        movq    (%r11), %r15
+        cmpq    $1, %rax
+        je      .L100
+        movq    8(%rsp), %rax
+        addq    $24, %rsp
+        .cfi_adjust_cfa_offset  -24
+        ret
+        .cfi_adjust_cfa_offset  24
+        .align  2
+.L100:
+        movq    0(%rsp), %rax
+        addq    $24, %rsp
+        .cfi_adjust_cfa_offset  -24
+        ret
+        .cfi_adjust_cfa_offset  24
+        .cfi_endproc
+```
 
 The `.cfi` directives are assembler hints that contain Call Frame Information
 that lets the debugger provide more sensible backtraces, and they have no
@@ -459,13 +698,59 @@ see that this polymorphic comparison is much heavier than the simple
 monomorphic integer comparison from earlier. Let's confirm this hypothesis
 again by writing a quick `Core_bench` test with both functions:
 
-<link rel="import" href="code/back-end/bench_poly_and_mono/bench_poly_and_mono.ml" />
+```ocaml
+open Core
+open Core_bench
+
+let polymorphic_compare () =
+  let cmp a b = if a > b then a else b in
+  for i = 0 to 1000 do
+    ignore(cmp 0 i)
+  done
+
+let monomorphic_compare () =
+  let cmp (a:int) (b:int) =
+    if a > b then a else b in
+  for i = 0 to 1000 do
+    ignore(cmp 0 i)
+  done
+
+let tests =
+  [ "Polymorphic comparison", polymorphic_compare;
+    "Monomorphic comparison", monomorphic_compare ]
+
+let () =
+  List.map tests ~f:(fun (name,test) -> Bench.Test.create ~name test)
+  |> Bench.make_command
+  |> Command.run
+```
 
 Running this shows quite a significant runtime difference between the two:
 
-<link rel="import" href="code/back-end/bench_poly_and_mono/jbuild" />
+```
+(executable
+  ((name bench_poly_and_mono)
+   (modules bench_poly_and_mono)
+   (libraries (core_bench))
+  )
+)
+```
 
-<link rel="import" href="code/back-end/bench_poly_and_mono/run_bench_poly_and_mono.sh" />
+
+
+```sh
+  $ jbuilder build bench_poly_and_mono.exe
+%% --non-deterministic [skip]
+  $ ./_build/default/bench_poly_and_mono.exe -ascii -quota 1
+  Estimated testing time 2s (2 benchmarks x 1s). Change using -quota SECS.
+                                                       
+    Name                        Time/Run   Percentage  
+   ------------------------ ------------- ------------ 
+    Polymorphic comparison   18_402.43ns      100.00%  
+    Monomorphic comparison      734.22ns        3.99%  
+                                                       
+
+```
 
 We see that the polymorphic comparison is close to 20 times slower! These
 results shouldn't be taken too seriously, as this is a very narrow test that,
@@ -550,23 +835,69 @@ Let's write a mutually recursive function that selects alternating values
 from a list. This isn't tail-recursive, so our stack size will grow as we
 single-step through the execution:
 
-<link rel="import" href="code/back-end/alternate_list/alternate_list.ml" />
+```ocaml
+open Core
+
+let rec take =
+  function
+  |[] -> []
+  |hd::tl -> hd :: (skip tl)
+and skip =
+  function
+  |[] -> []
+  |_::tl -> take tl
+
+let () =
+  take [1;2;3;4;5;6;7;8;9]
+  |> List.map ~f:string_of_int
+  |> String.concat ~sep:","
+  |> print_endline
+```
 
 Compile and run this with debugging symbols. You should see the following
 output:
 
-<link rel="import" href="code/back-end/alternate_list/jbuild" />
+```
+(executable
+  ((name alternate_list)
+   (libraries (core))
+  )
+)
+```
 
-<link rel="import" href="code/back-end/alternate_list/run_alternate_list.sh" />
+
+
+```sh
+  $ jbuilder build alternate_list.exe
+  $ ./_build/default/alternate_list.exe -ascii -quota 1
+  1,3,5,7,9
+
+```
 
 Now we can run this interactively within `gdb`:
 
-<link rel="import" href="code/back-end/gdb_alternate0.rawsh" />
+```
+$ gdb ./alternate_list.native
+GNU gdb (GDB) 7.4.1-debian
+Copyright (C) 2012 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.  Type "show copying"
+and "show warranty" for details.
+This GDB was configured as "x86_64-linux-gnu".
+For bug reporting instructions, please see:
+<http://www.gnu.org/software/gdb/bugs/>...
+Reading symbols from /home/avsm/alternate_list.native...done.
+(gdb)
+```
 
 The `gdb` prompt lets you enter debug directives. Let's set the program to
 break just before the first call to `take`:
 
-<link rel="import" href="code/back-end/gdb_alternate1.rawsh" />
+```
+(gdb) break camlAlternate_list__take_69242 
+Breakpoint 1 at 0x5658d0: file alternate_list.ml, line 5.
+```
 
 We used the C symbol name by following the name mangling rules defined
 earlier. A convenient way to figure out the full name is by tab completion.
@@ -575,13 +906,47 @@ possible completions.
 
 Once you've set the breakpoint, start the program executing:
 
-<link rel="import" href="code/back-end/gdb_alternate2.rawsh" />
+```
+(gdb) run
+Starting program: /home/avsm/alternate_list.native
+[Thread debugging using libthread_db enabled]
+Using host libthread_db library "/lib/x86_64-linux-gnu/libthread_db.so.1".
+ 
+Breakpoint 1, camlAlternate_list__take_69242 () at alternate_list.ml:5
+4         function
+```
 
 The binary has run until the first take invocation and stopped, waiting for
 further instructions. GDB has lots of features, so let's continue the program
 and check the stacktrace after a couple of recursions:
 
-<link rel="import" href="code/back-end/gdb_alternate3.rawsh" />
+```
+(gdb) cont
+Continuing.
+ 
+Breakpoint 1, camlAlternate_list__take_69242 () at alternate_list.ml:5
+4         function
+(gdb) cont
+Continuing.
+ 
+Breakpoint 1, camlAlternate_list__take_69242 () at alternate_list.ml:5
+4         function
+(gdb) bt
+#0  camlAlternate_list__take_69242 () at alternate_list.ml:4
+#1  0x00000000005658e7 in camlAlternate_list__take_69242 () at alternate_list.ml:6
+#2  0x00000000005658e7 in camlAlternate_list__take_69242 () at alternate_list.ml:6
+#3  0x00000000005659f7 in camlAlternate_list__entry () at alternate_list.ml:14
+#4  0x0000000000560029 in caml_program ()
+#5  0x000000000080984a in caml_start_program ()
+#6  0x00000000008099a0 in ?? ()
+#7  0x0000000000000000 in ?? ()
+(gdb) clear camlAlternate_list__take_69242
+Deleted breakpoint 1 
+(gdb) cont
+Continuing.
+1,3,5,7,9
+[Inferior 1 (process 3546) exited normally]
+```
 
 The `cont` command resumes execution after a breakpoint has paused it,
 `bt` displays a stack backtrace, and `clear` deletes the breakpoint so the
@@ -640,11 +1005,37 @@ Run Perf on a compiled binary to record information first. We'll use our
 write barrier benchmark from earlier, which measures memory allocation versus
 in-place modification:
 
-<link rel="import" href="code/back-end/perf_record.rawsh" />
+```
+$ perf record -g ./barrier_bench.native
+Estimated testing time 20s (change using -quota SECS).
+ 
+  Name        Time (ns)             Time 95ci   Percentage
+  ----        ---------             ---------   ----------
+  mutable     7_306_219   7_250_234-7_372_469        96.83
+  immutable   7_545_126   7_537_837-7_551_193       100.00
+ 
+[ perf record: Woken up 11 times to write data ]
+[ perf record: Captured and wrote 2.722 MB perf.data (~118926 samples) ]
+perf record -g ./barrier.native
+Estimated testing time 20s (change using -quota SECS).
+ 
+  Name        Time (ns)             Time 95ci   Percentage
+  ----        ---------             ---------   ----------
+  mutable     7_306_219   7_250_234-7_372_469        96.83
+  immutable   7_545_126   7_537_837-7_551_193       100.00
+ 
+[ perf record: Woken up 11 times to write data ]
+[ perf record: Captured and wrote 2.722 MB perf.data (~118926 samples) ]
+```
 
 When this completes, you can interactively explore the results:
 
-<link rel="import" href="code/back-end/perf_report.rawsh" />
+```
+$ perf report -g
++  48.86%  barrier.native  barrier.native  [.] camlBarrier__test_immutable_69282
++  30.22%  barrier.native  barrier.native  [.] camlBarrier__test_mutable_69279
++  20.22%  barrier.native  barrier.native  [.] caml_modify
+```
 
 This trace broadly reflects the results of the benchmark itself. The mutable
 benchmark consists of the combination of the call to `test_mutable` and the
@@ -675,7 +1066,10 @@ resolution of Perf traces.
 OPAM provides a compiler switch that compiles OCaml with the frame pointer
 activated:
 
-<link rel="import" href="code/back-end/opam_switch.rawsh" />
+```
+$ opam switch 4.01.0+fp
+
+```
 
 Using the frame pointer changes the OCaml calling convention, but OPAM takes
 care of recompiling all your libraries with the new interface. You can read
@@ -699,7 +1093,16 @@ installed as `libasmrun.a` in the OCaml standard library directory.
 Try this custom linking by using the same source files from the bytecode
 embedding example earlier in this chapter:
 
-<link rel="import" href="code/back-end-embed/build_embed_native.rawsh" />
+```
+$ ocamlopt -output-obj -o embed_native.o embed_me1.ml embed_me2.ml
+$ gcc -Wall -I `ocamlc -where` -o final.native embed_native.o main.c \
+   -L `ocamlc -where` -lasmrun -ltermcap -lm -ldl
+$ ./final.native
+Before calling OCaml
+hello embedded world 1
+hello embedded world 2
+After calling OCaml
+```
 
 The `embed_native.o` is a standalone object file that has no further
 references to OCaml code beyond the runtime library, just as with the
@@ -723,8 +1126,25 @@ To use the debug library, just link your program with the
 `-runtime-variant d` flag:
 :::
 
+```sh
+%% --non-deterministic
+  $ ocamlopt -runtime-variant d -verbose -o hello.native hello.ml
+  + clang -arch x86_64 -Wno-trigraphs -c -o 'hello.o' '/var/folders/9g/7vjfw6kn7k9bs721d_zjzn7h0000gn/T/camlasm9b916c.s'
+  + clang -arch x86_64 -Wno-trigraphs -c -o '/var/folders/9g/7vjfw6kn7k9bs721d_zjzn7h0000gn/T/camlstartup8f1c0d.o' '/var/folders/9g/7vjfw6kn7k9bs721d_zjzn7h0000gn/T/camlstartupf69d9a.s'
+  + cc -O2 -fno-strict-aliasing -fwrapv -Wall -D_FILE_OFFSET_BITS=64 -D_REENTRANT -DCAML_NAME_SPACE   -Wl,-no_compact_unwind -o 'hello.native'   '-L/Users/thomas/git/rwo/book/_opam/lib/ocaml'  '/var/folders/9g/7vjfw6kn7k9bs721d_zjzn7h0000gn/T/camlstartup8f1c0d.o' '/Users/thomas/git/rwo/book/_opam/lib/ocaml/std_exit.o' 'hello.o' '/Users/thomas/git/rwo/book/_opam/lib/ocaml/stdlib.a' '/Users/thomas/git/rwo/book/_opam/lib/ocaml/libasmrund.a' 
+%% --non-deterministic
+  $ ./hello.native
+  ### OCaml runtime: debug mode ###
+  Initial minor heap size: 256k words
+  Initial major heap size: 3840k bytes
+  Initial space overhead: 80%
+  Initial max overhead: 500%
+  Initial heap increment: 15%
+  Initial allocation policy: 0
+  Initial smoothing window: 1
+  Hello OCaml World!
 
-<link rel="import" href="code/back-end-embed/run_debug_hello.sh" />
+```
 
 If you get an error that `libasmrund.a` is not found, it's probably because
 you're using OCaml 4.00 and not 4.01. It's only installed by default in the
@@ -774,3 +1194,4 @@ Extension | Purpose
 
 Table:  Intermediate outputs produced by the native code OCaml toolchain
 :::
+

@@ -111,11 +111,15 @@ let dump_part ppf = function
   | `Other s -> Fmt.string ppf s
 
 let pp_part ppf = function
-  | `OCaml c -> Fmt.string ppf c.Expect.Raw_script.content
-  | `OCaml_toplevel c -> Fmt.(list ~sep:(unit "\n") Expect.Chunk.pp) ppf c
-  | `OCaml_rawtoplevel c -> Fmt.string ppf c.Expect.Raw_script.content
-  | `Shell s -> Expect.Cram.pp ppf s
-  | `Other s -> Fmt.string ppf s
+  | `OCaml c ->
+    Fmt.pf ppf "```ocaml\n%s\n```\n" (String.trim c.Expect.Raw_script.content)
+  | `OCaml_toplevel c ->
+    Fmt.pf ppf "```ocaml\n%a\n```\n"
+      Fmt.(list ~sep:(unit "\n") Expect.Chunk.pp) c
+  | `OCaml_rawtoplevel c ->
+    Fmt.pf ppf "```ocaml\n%s\n```\n" (String.trim c.Expect.Raw_script.content)
+  | `Shell s -> Fmt.pf ppf "```sh\n%a\n```\n" Expect.Cram.pp s
+  | `Other s -> Fmt.pf ppf "```\n%s\n```\n" s
 
 let dump_item ppf = function
   | Lines t -> Fmt.pf ppf "Line@ (@[<2>%a@])" Fmt.(Dump.list string) t
@@ -127,7 +131,7 @@ let pp_lines ppf l =
   Fmt.string ppf (String.trim str)
 
 let pp_item ppf = function
-  | Lines t -> Fmt.pf ppf "[%%md {|\n%a\n|}];;" pp_lines t
+  | Lines t -> Fmt.pf ppf "%a\n" pp_lines t
   | Link t  -> pp_part ppf t.part
 
 let dump ppf t = Fmt.Dump.list pp_item ppf t.items
@@ -201,12 +205,12 @@ module Parse = struct
 end
 
 let run input =
-  let output = (Filename.remove_extension input) ^ ".mlt" in
+  let t = Parse.file input in
+  let output = (Filename.remove_extension input) ^ ".md" in
   Fmt.pr "Generating %s\n%!" output;
   try
     let oc = open_out output in
     let ppf = Format.formatter_of_out_channel oc in
-    let t = Parse.file input in
     Fmt.pf ppf "%a%!" pp t;
     close_out oc;
   with Error e ->

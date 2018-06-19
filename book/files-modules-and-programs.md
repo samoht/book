@@ -35,7 +35,26 @@ allocates a new list with the requisite key/value pair added.
 
 Now we can write `freq.ml`.
 
-<link rel="import" href="code/files-modules-and-programs/freq/freq.ml" />
+```ocaml
+open Base
+open Stdio
+
+let build_counts () =
+  In_channel.fold_lines In_channel.stdin ~init:[] ~f:(fun counts line ->
+    let count =
+      match List.Assoc.find ~equal:String.equal counts line with
+      | None -> 0
+      | Some x -> x
+    in
+    List.Assoc.add ~equal:String.equal counts line (count + 1)
+  )
+
+let () =
+  build_counts ()
+  |> List.sort ~compare:(fun (_,x) (_,y) -> Int.descending x y)
+  |> (fun l -> List.take l 10)
+  |> List.iter ~f:(fun (line,count) -> printf "%3d: %s\n" count line)
+```
 
 The function `build_counts` reads in lines from `stdin`, constructing from
 those lines an association list with the frequencies of each line. It does
@@ -76,14 +95,23 @@ is common for functions that operate primarily by side effect.
 If we weren't using `Base` or any other external libraries, we could build
 the executable like this:
 
-<link rel="import" href="code/files-modules-and-programs/freq/simple_build_fail.errsh" />
+```sh
+  $ ocamlc freq.ml -o freq.byte
+  File "freq.ml", line 1, characters 5-9:
+  Error: Unbound module Base
+@@ exit 2
+
+```
 
 But as you can see, it fails because it can't find `Base` and `Stdio`. We
 need a somewhat more complex invocation to get them linked in: [OCaml
 toolchain/ocamlc]{.idx}[OCaml toolchain/ocamlfind]{.idx}[Base standard
 library/finding with ocamlfind]{.idx}
 
-<link rel="import" href="code/files-modules-and-programs/freq/simple_build.sh" />
+```sh
+  $ ocamlfind ocamlc -linkpkg -package base -package stdio freq.ml -o freq.byte
+
+```
 
 This uses `ocamlfind`, a tool which itself invokes other parts of the OCaml
 toolchain (in this case, `ocamlc`) with the appropriate flags to link in
@@ -98,7 +126,12 @@ projects require a tool to orchestrate the build. One good tool for this task
 is `jbuilder`. To invoke `jbuilder`, you need to have a `jbuild` file that
 specifies the details of the build. [jbuilder]{.idx}
 
-<link rel="import" href="code/files-modules-and-programs/freq-obuild/jbuild" />
+```
+(executable
+ ((name freq)
+  (libraries (base stdio))
+  ))
+```
 
 With that in place, we can invoke `jbuilder` as follows.
 
@@ -177,7 +210,17 @@ maintaining the association list used to represent the frequency counts. The
 key function, called `touch`, bumps the frequency count of a given line by
 one.
 
-<link rel="import" href="code/files-modules-and-programs/freq-with-counter/counter.ml" />
+```ocaml
+open Base
+
+let touch counts line =
+  let count = 
+    match List.Assoc.find ~equal:String.equal counts line with
+    | None -> 0
+    | Some x -> x
+  in
+  List.Assoc.add ~equal:String.equal counts line (count + 1)
+```
 
 The file *counter.ml* will be compiled into a module named `Counter`, where
 the name of the module is derived automatically from the filename. The module
@@ -186,12 +229,26 @@ capitalized. [modules/naming of]{.idx}
 
 We can now rewrite `freq.ml` to use `Counter`.
 
-<link rel="import" href="code/files-modules-and-programs/freq-with-counter/freq.ml" />
+```ocaml
+open Base
+open Stdio
+
+let build_counts () =
+  In_channel.fold_lines In_channel.stdin ~init:[] ~f:Counter.touch
+
+let () =
+  build_counts ()
+  |> List.sort ~compare:(fun (_,x) (_,y) -> Int.descending x y)
+  |> (fun l -> List.take l 10)
+  |> List.iter ~f:(fun (line,count) -> printf "%3d: %s\n" count line)
+```
 
 The resulting code can still be built with `jbuilder`, which will discover
 dependencies and realize that `counter.ml` needs to be compiled.
 
-<link rel="import" href="code/files-modules-and-programs/freq-with-counter/build.sh" />
+```sh
+
+```
 
 ## Signatures and Abstract Types {#signatures-and-abstract-types}
 
@@ -216,11 +273,18 @@ what's currently available in `counter.ml`, without hiding anything.
 `val` declarations are used to specify values in a signature. The syntax of a
 `val` declaration is as follows:
 
-<link rel="import" href="code/files-modules-and-programs/val.syntax" />
+```
+val <identifier> : <type>
+```
 
 Using this syntax, we can write the signature of `counter.ml` as follows.
 
-<link rel="import" href="code/files-modules-and-programs/freq-with-sig/counter.mli" />
+```ocaml
+open Base
+
+(** Bump the frequency count for the given string. *)
+val touch : (string * int) list -> string -> (string * int) list
+```
 
 Note that `jbuilder` will detect the presence of the `mli` file automatically
 and include it in the build.
@@ -230,7 +294,22 @@ we'll need to make the type of frequency counts *abstract*. A type is
 abstract if its name is exposed in the interface, but its definition is not.
 Here's an abstract interface for `Counter`:
 
-<link rel="import" href="code/files-modules-and-programs/freq-with-sig-abstract/counter.mli" />
+```ocaml
+open Base
+
+(** A collection of string frequency counts *)
+type t
+
+(** The empty set of frequency counts  *)
+val empty : t
+
+(** Bump the frequency count for the given string. *)
+val touch : t -> string -> t
+
+(** Converts the set of frequency counts to an association list.  A string shows
+    up at most once, and the counts are >= 1. *)
+val to_list : t -> (string * int) list
+```
 
 Note that we needed to add `empty` and `to_list` to `Counter`, since
 otherwise there would be no way to create a `Counter.t` or get data out of
@@ -245,11 +324,38 @@ documentation. We'll discuss `odoc` more in
 
 Here's a rewrite of `counter.ml` to match the new `counter.mli`:
 
-<link rel="import" href="code/files-modules-and-programs/freq-with-sig-abstract/counter.ml" />
+```ocaml
+open Base
+
+type t = (string * int) list
+
+let empty = []
+
+let to_list x = x
+
+let touch counts line =
+  let count = 
+    match List.Assoc.find ~equal:String.equal counts line with
+    | None -> 0
+    | Some x -> x
+  in
+  List.Assoc.add ~equal:String.equal counts line (count + 1)
+```
 
 If we now try to compile `freq.ml`, we'll get the following error:
 
-<link rel="import" href="code/files-modules-and-programs/freq-with-sig-abstract/build.errsh" />
+```sh
+  $ jbuilder build freq.bc
+        ocamlc .freq.eobjs/freq.{cmi,cmo,cmt} (exit 2)
+  (cd _build/default && /home/yminsky/.opam/fresh-4.06.1/bin/ocamlc.opt -w -40 -g -bin-annot -I .freq.eobjs -I /home/yminsky/.opam/fresh-4.06.1/lib/base -I /home/yminsky/.opam/fresh-4.06.1/lib/base/caml -I /home/yminsky/.opam/fresh-4.06.1/lib/base/shadow_stdlib -I /home/yminsky/.opam/fresh-4.06.1/lib/sexplib0 -I /home/yminsky/.opam/fresh-4.06.1/lib/stdio -no-alias-deps -o .freq.eobjs/freq.cmo -c -impl freq.ml)
+  File "freq.ml", line 5, characters 53-66:
+  Error: This expression has type Counter.t -> Base.string -> Counter.t
+         but an expression was expected of type
+           'a list -> Base.string -> 'a list
+         Type Counter.t is not compatible with type 'a list 
+@@ exit 1
+
+```
 
 This is because `freq.ml` depends on the fact that frequency counts are
 represented as association lists, a fact that we've just hidden. We just need
@@ -257,17 +363,48 @@ to fix `build_counts` to use `Counter.empty` instead of `[]` and to use
 `Counter.to_list` to convert the completed counts to an association list. The
 resulting implementation is shown below.
 
-<link rel="import" href="code/files-modules-and-programs/freq-with-sig-abstract-fixed/freq.ml" />
+```ocaml
+open Base
+open Stdio
+
+let build_counts () =
+  In_channel.fold_lines In_channel.stdin ~init:Counter.empty ~f:Counter.touch
+
+let () =
+  build_counts ()
+  |> Counter.to_list
+  |> List.sort ~compare:(fun (_,x) (_,y) -> Int.descending x y)
+  |> (fun counts -> List.take counts 10)
+  |> List.iter ~f:(fun (line,count) -> printf "%3d: %s\n" count line)
+```
 
 With this implementation, the build now succeeds!
 
-<link rel="import" href="code/files-modules-and-programs/freq-with-sig-abstract-fixed/build.sh" />
+```sh
+
+```
 
 Now we can turn to optimizing the implementation of `Counter`. Here's an
 alternate and far more efficient implementation, based on the `Map` data
 structure in `Core_kernel`.
 
-<link rel="import" href="code/files-modules-and-programs/freq-fast/counter.ml" />
+```ocaml
+open Base
+
+type t = (string,int,String.comparator_witness) Map.t
+
+let empty = Map.empty (module String)
+
+let to_list t = Map.to_alist t
+
+let touch t s =
+  let count =
+    match Map.find t s with
+    | None -> 0
+    | Some x -> x
+  in
+  Map.set t ~key:s ~data:(count + 1)
+```
 
 There's some unfamiliar syntax in the above example, in particular, writing
 `Map.M(String).t` to refer to the type of a map with string keys, and
@@ -336,7 +473,21 @@ from the string type.
 Here's how you might create such an abstract type, within a submodule:
 [abstract types]{.idx}
 
-<link rel="import" href="code/files-modules-and-programs/abstract_username.ml" />
+```ocaml
+open Base
+
+module Username : sig
+  type t
+  val of_string : string -> t
+  val to_string : t -> string
+  val (=) : t -> t -> bool
+end = struct
+  type t = string
+  let of_string x = x
+  let to_string x = x
+  let (=) = String.(=)
+end
+```
 
 Note that the `to_string` and `of_string` functions above are implemented
 simply as the identity function, which means they have no runtime effect.
@@ -348,21 +499,61 @@ this example purposefully simple.
 
 The basic structure of a module declaration like this is:
 
-<link rel="import" href="code/files-modules-and-programs/module.syntax" />
+```
+module <name> : <signature> = <implementation>
+```
 
 We could have written this slightly differently, by giving the signature its
 own top-level `module type` declaration, making it possible to create
 multiple distinct types with the same underlying implementation in a
 lightweight way:
 
-<link rel="import" href="code/files-modules-and-programs/session_info/session_info.ml" />
+```ocaml
+open Base
+module Time = Core_kernel.Time
+
+module type ID = sig
+  type t
+  val of_string : string -> t
+  val to_string : t -> string
+  val (=) : t -> t -> bool
+end
+
+module String_id = struct
+  type t = string
+  let of_string x = x
+  let to_string x = x
+  let (=) = String.(=)
+end
+
+module Username : ID = String_id
+module Hostname : ID = String_id
+
+type session_info = { user: Username.t;
+                      host: Hostname.t;
+                      when_started: Time.t;
+                    }
+
+let sessions_have_same_user s1 s2 =
+  Hostname.(=) s1.user s2.host
+```
 
 The preceding code has a bug: it compares the username in one session to the
 host in the other session, when it should be comparing the usernames in both
 cases. Because of how we defined our types, however, the compiler will flag
 this bug for us.
 
-<link rel="import" href="code/files-modules-and-programs/session_info/build_session_info.errsh" />
+```sh
+%% --non-deterministic
+  $ jbuilder build session_info.exe
+        ocamlc .session_info.eobjs/session_info.{cmi,cmo,cmt} (exit 2)
+  (cd _build/default && /Users/thomas/git/rwo/book/_opam/bin/ocamlc.opt -w -40 -g -bin-annot -I /Users/thomas/git/rwo/book/_opam/lib/base -I /Users/thomas/git/rwo/book/_opam/lib/base/caml -I /Users/thomas/git/rwo/book/_opam/lib/base/md5 -I /Users/thomas/git/rwo/book/_opam/lib/base/shadow_stdlib -I /Users/thomas/git/rwo/book/_opam/lib/bin_prot -I /Users/thomas/git/rwo/book/_opam/lib/bin_prot/shape -I /Users/thomas/git/rwo/book/_opam/lib/core_kernel -I /Users/thomas/git/rwo/book/_opam/lib/core_kernel/base_for_tests -I /Users/thomas/git/rwo/book/_opam/lib/fieldslib -I /Users/thomas/git/rwo/book/_opam/lib/jane-street-headers -I /Users/thomas/git/rwo/book/_opam/lib/ppx_assert/runtime-lib -I /Users/thomas/git/rwo/book/_opam/lib/ppx_bench/runtime-lib -I /Users/thomas/git/rwo/book/_opam/lib/ppx_compare/runtime-lib -I /Users/thomas/git/rwo/book/_opam/lib/ppx_expect/collector -I /Users/thomas/git/rwo/book/_opam/lib/ppx_expect/common -I /Users/thomas/git/rwo/book/_opam/lib/ppx_expect/config -I /Users/thomas/git/rwo/book/_opam/lib/ppx_hash/runtime-lib -I /Users/thomas/git/rwo/book/_opam/lib/ppx_inline_test/config -I /Users/thomas/git/rwo/book/_opam/lib/ppx_inline_test/runtime-lib -I /Users/thomas/git/rwo/book/_opam/lib/sexplib -I /Users/thomas/git/rwo/book/_opam/lib/sexplib/0 -I /Users/thomas/git/rwo/book/_opam/lib/stdio -I /Users/thomas/git/rwo/book/_opam/lib/typerep -I /Users/thomas/git/rwo/book/_opam/lib/variantslib -no-alias-deps -I .session_info.eobjs -o .session_info.eobjs/session_info.cmo -c -impl session_info.ml)
+  File "session_info.ml", line 27, characters 15-22:
+  Error: This expression has type Username.t
+         but an expression was expected of type Hostname.t
+@@ exit 1
+
+```
 
 This is a trivial example, but confusing different kinds of identifiers is a
 very real source of bugs, and the approach of minting abstract types for
@@ -458,7 +649,18 @@ To consider a more realistic example, imagine you wanted to build an extended
 version of the `List` module, where you've added some functionality not
 present in the module as distributed in `Base`. That's a job for `include`.
 
-<link rel="import" href="code/files-modules-and-programs/ext_list.ml" />
+```ocaml
+open Base
+
+(* The new function we're going to add *)
+let rec intersperse list el =
+  match list with
+  | [] | [ _ ]   -> list
+  | x :: y :: tl -> x :: el :: intersperse (y::tl) el
+
+(* The remainder of the list module *)
+include List
+```
 
 Now, how do we write an interface for this new module? It turns out that
 `include` works on signatures as well, so we can pull essentially the same
@@ -466,7 +668,15 @@ trick to write our `mli`. The only issues is that we need to get our hands on
 the signature for the `List` module. This can be done using `module type of`,
 which computes a signature from a module:
 
-<link rel="import" href="code/files-modules-and-programs/ext_list.mli" />
+```ocaml
+open Base
+
+(* Include the interface of the list module from Core *)
+include (module type of List)
+
+(* Signature of function we're adding *)
+val intersperse : 'a list -> 'a -> 'a list
+```
 
 Note that the order of declarations in the `mli` does not need to match the
 order of declarations in the `ml`. The order of declarations in the `ml`
@@ -479,7 +689,9 @@ We can now use `Ext_list` as a replacement for `List`. If we want to use
 `Ext_list` in preference to `List` in our project, we can create a file of
 common definitions:
 
-<link rel="import" href="code/files-modules-and-programs/common.ml" />
+```ocaml
+module List = Ext_list
+```
 
 And if we then put `open Common` after `open Base` at the top of each file in
 our project, then references to `List` will automatically go to `Ext_list`
@@ -504,7 +716,25 @@ mismatches]{.idx}[modules/type mismatches in]{.idx}
 
 and we try to compile, we'll get the following error.
 
-<link rel="import" href="code/files-modules-and-programs/freq-with-sig-mismatch/build.errsh" />
+```sh
+%% --non-deterministic
+  $ jbuilder build freq.bc
+        ocamlc .freq.eobjs/counter.{cmo,cmt} (exit 2)
+  (cd _build/default && /Users/thomas/git/rwo/book/_opam/bin/ocamlc.opt -w -40 -g -bin-annot -I /Users/thomas/git/rwo/book/_opam/lib/base -I /Users/thomas/git/rwo/book/_opam/lib/base/caml -I /Users/thomas/git/rwo/book/_opam/lib/base/shadow_stdlib -I /Users/thomas/git/rwo/book/_opam/lib/sexplib -I /Users/thomas/git/rwo/book/_opam/lib/sexplib/0 -I /Users/thomas/git/rwo/book/_opam/lib/stdio -no-alias-deps -I .freq.eobjs -o .freq.eobjs/counter.cmo -c -impl counter.ml)
+  File "counter.ml", line 1:
+  Error: The implementation counter.ml
+         does not match the interface .freq.eobjs/counter.cmi:
+         Values do not match:
+           val touch :
+             ('a, Base__Int.t, 'b) Base.Map.t ->
+             'a -> ('a, Base__Int.t, 'b) Base.Map.t
+         is not included in
+           val touch : t -> Base.string -> t
+         File "counter.mli", line 11, characters 0-28: Expected declaration
+         File "counter.ml", line 9, characters 4-9: Actual declaration
+@@ exit 1
+
+```
 
 ### Missing Definitions {#missing-definitions}
 
@@ -519,7 +749,13 @@ definitions in]{.idx}
 Now if we try to compile without actually adding the implementation, we'll
 get this error.
 
-<link rel="import" href="code/files-modules-and-programs/freq-with-missing-def/build.errsh" />
+```sh
+  $ jbuilder build counter.bc
+  Don't know how to build counter.bc
+  Hint: did you mean counter.o or counter.ml?
+@@ exit 1
+
+```
 
 A missing type definition will lead to a similar error.
 
@@ -537,7 +773,27 @@ definition mismatches]{.idx}[modules/type definition mismatches]{.idx}
 
 will lead to a compilation error.
 
-<link rel="import" href="code/files-modules-and-programs/freq-with-type-mismatch/build.errsh" />
+```sh
+  $ jbuilder build freq.bc
+        ocamlc .freq.eobjs/counter.{cmo,cmt} (exit 2)
+  (cd _build/default && /home/yminsky/.opam/fresh-4.06.1/bin/ocamlc.opt -w -40 -g -bin-annot -I .freq.eobjs -I /home/yminsky/.opam/fresh-4.06.1/lib/base -I /home/yminsky/.opam/fresh-4.06.1/lib/base/caml -I /home/yminsky/.opam/fresh-4.06.1/lib/base/shadow_stdlib -I /home/yminsky/.opam/fresh-4.06.1/lib/sexplib0 -I /home/yminsky/.opam/fresh-4.06.1/lib/stdio -no-alias-deps -o .freq.eobjs/counter.cmo -c -impl counter.ml)
+  File "counter.ml", line 1:
+  Error: The implementation counter.ml
+         does not match the interface .freq.eobjs/counter.cmi:
+         Type declarations do not match:
+           type median =
+               Median of Base.string
+             | Before_and_after of Base.string * Base.string
+         is not included in
+           type median =
+               Before_and_after of Base.string * Base.string
+             | Median of Base.string
+         File "counter.mli", line 20, characters 0-84: Expected declaration
+         File "counter.ml", line 18, characters 0-84: Actual declaration
+         Fields number 1 have different names, Median and Before_and_after.
+@@ exit 1
+
+```
 
 Order is similarly important to other type declarations, including the order
 in which record fields are declared and the order of arguments (including
@@ -569,7 +825,16 @@ within `counter.ml`.
 
 we'll see this error when we try to build:
 
-<link rel="import" href="code/files-modules-and-programs/freq-cyclic1/build.errsh" />
+```sh
+%% --non-deterministic
+  $ jbuilder build freq.bc
+        ocamlc .freq.eobjs/counter.{cmi,cmo,cmt} (exit 2)
+  (cd _build/default && /Users/thomas/git/rwo/book/_opam/bin/ocamlc.opt -w -40 -g -bin-annot -I /Users/thomas/git/rwo/book/_opam/lib/base -I /Users/thomas/git/rwo/book/_opam/lib/base/caml -I /Users/thomas/git/rwo/book/_opam/lib/base/shadow_stdlib -I /Users/thomas/git/rwo/book/_opam/lib/sexplib -I /Users/thomas/git/rwo/book/_opam/lib/sexplib/0 -I /Users/thomas/git/rwo/book/_opam/lib/stdio -no-alias-deps -I .freq.eobjs -o .freq.eobjs/counter.cmo -c -impl counter.ml)
+  File "counter.ml", line 18, characters 18-31:
+  Error: Unbound module Counter
+@@ exit 1
+
+```
 
 The problem manifests in a different way if we create cyclic references
 between files. We could create such a situation by adding a reference to
@@ -581,8 +846,15 @@ between files. We could create such a situation by adding a reference to
 In this case, `jbuilder` will notice the error and complain explicitly about
 the cycle:
 
-<link rel="import" href="code/files-modules-and-programs/freq-cyclic2/build.errsh" />
+```sh
+  $ jbuilder build freq.bc
+  Dependency cycle between modules in _build/default:
+     -> Freq
+  -> Counter
+  -> Freq
+@@ exit 1
 
+```
 
 ## Designing with Modules {#designing-with-modules}
 
@@ -707,6 +979,4 @@ by working on the implementation. But types and signatures provide a
 lightweight tool for constructing a skeleton of your design in a way that
 helps clarify your goals and intent, before you spend a lot of time and
 effort fleshing it out.
-
-
 

@@ -12,19 +12,36 @@ An OCaml list is an immutable, finite sequence of elements of the same type.
 As we've seen, OCaml lists can be generated using a bracket-and-semicolon
 notation:[lists/generation of]{.idx}
 
-<link rel="import" href="code/lists-and-patterns/main.mlt" part="0.5" />
+```ocaml
+open Base;;
+
+[1;2;3];;
+:: - : int list = [1; 2; 3]
+```
 
 And they can also be generated using the equivalent `::`
 notation:[operators/: : operator]{.idx}[lists/operator : :]{.idx}
 
-<link rel="import" href="code/lists-and-patterns/main.mlt" part="1" />
+```ocaml
+1 :: (2 :: (3 :: [])) ;;
+:: - : int list = [1; 2; 3]
+1 :: 2 :: 3 :: [] ;;
+:: - : int list = [1; 2; 3]
+```
 
 As you can see, the `::` operator is right-associative, which means that we
 can build up lists without parentheses. The empty list `[]` is used to
 terminate a list. Note that the empty list is polymorphic, meaning it can be
 used with elements of any type, as you can see here:
 
-<link rel="import" href="code/lists-and-patterns/main.mlt" part="2" />
+```ocaml
+let empty = [];;
+:: val empty : 'a list = []
+3 :: empty;;
+:: - : int list = [3]
+"three" :: empty;;
+:: - : string list = ["three"]
+```
 
 The way in which the `::` operator attaches elements to the front of a list
 reflects the fact that OCaml's lists are in fact singly linked lists. The
@@ -43,7 +60,14 @@ reference to the remainder of the list. This is why `::` can extend a list
 without modifying it; extension allocates a new list element but does not
 change any of the existing ones, as you can see:[lists/extension of]{.idx}
 
-<link rel="import" href="code/lists-and-patterns/main.mlt" part="3" />
+```ocaml
+let l = 1 :: 2 :: 3 :: [];;
+:: val l : int list = [1; 2; 3]
+let m = 0 :: l;;
+:: val m : int list = [0; 1; 2; 3]
+l;;
+:: - : int list = [1; 2; 3]
+```
 
 ## Using Patterns to Extract Data from a List {#using-patterns-to-extract-data-from-a-list}
 
@@ -52,7 +76,18 @@ example of a recursive function that computes the sum of all elements of a
 list:[match statements]{.idx}[pattern matching/extracting data
 with]{.idx #PATMAT}[lists/extracting data from]{.idx}
 
-<link rel="import" href="code/lists-and-patterns/main.mlt" part="4" />
+```ocaml
+let rec sum l =
+  match l with
+  | [] -> 0
+  | hd :: tl -> hd + sum tl
+;;
+:: val sum : int list -> int = <fun>
+sum [1;2;3];;
+:: - : int = 6
+sum [];;
+:: - : int = 0
+```
 
 This code follows the convention of using `hd` to represent the first element
 (or head) of the list, and `tl` to represent the remainder (or tail).
@@ -71,13 +106,25 @@ filtered out from a list all elements equal to a particular value. You might
 be tempted to write that code as follows, but when you do, the compiler will
 immediately warn you that something is wrong:
 
-<link rel="import" href="code/lists-and-patterns/main.mlt" part="5" />
+```ocaml
+let rec drop_value l to_drop =
+  match l with
+  | [] -> []
+  | to_drop :: tl -> drop_value tl to_drop
+  | hd :: tl -> hd :: drop_value tl to_drop
+;;
+1> Characters 106-114:
+1> Warning 11: this match case is unused.:: val drop_value : 'a list -> 'a -> 'a list = <fun>
+```
 
 Moreover, the function clearly does the wrong thing, filtering out all
 elements of the list rather than just those equal to the provided value, as
 you can see here:
 
-<link rel="import" href="code/lists-and-patterns/main.mlt" part="6" />
+```ocaml
+drop_value [1;2;3] 2;;
+:: - : int list = []
+```
 
 So, what's going on?
 
@@ -93,13 +140,34 @@ A better way to write this code is not to use pattern matching for
 determining whether the first element is equal to `to_drop`, but to instead
 use an ordinary `if` statement:
 
-<link rel="import" href="code/lists-and-patterns/main.mlt" part="7" />
+```ocaml
+let rec drop_value l to_drop =
+  match l with
+  | [] -> []
+  | hd :: tl ->
+    let new_tl = drop_value tl to_drop in
+    if hd = to_drop then new_tl else hd :: new_tl
+;;
+:: val drop_value : int list -> int -> int list = <fun>
+drop_value [1;2;3] 2;;
+:: - : int list = [1; 3]
+```
 
 If we wanted to drop a particular literal value, rather than a value that was
 passed in, we could do this using something like our original implementation
 of `drop_value`:
 
-<link rel="import" href="code/lists-and-patterns/main.mlt" part="8" />
+```ocaml
+let rec drop_zero l =
+  match l with
+  | [] -> []
+  | 0  :: tl -> drop_zero tl
+  | hd :: tl -> hd :: drop_zero tl
+;;
+:: val drop_zero : int list -> int list = <fun>
+drop_zero [1;2;0;3];;
+:: - : int list = [1; 2; 3]
+```
 
 ## Limitations (and Blessings) of Pattern Matching {#limitations-and-blessings-of-pattern-matching}
 
@@ -129,7 +197,29 @@ As an example, consider the following rather silly functions for incrementing
 an integer by one. The first is implemented with a `match` statement, and the
 second with a sequence of `if` statements:
 
-<link rel="import" href="code/lists-and-patterns/main.mlt" part="9" />
+```ocaml
+let plus_one_match x =
+  match x with
+  | 0 -> 1
+  | 1 -> 2
+  | 2 -> 3
+  | 3 -> 4
+  | 4 -> 5
+  | 5 -> 6
+  | _ -> x + 1
+;;
+:: val plus_one_match : int -> int = <fun>
+let plus_one_if x =
+  if      x = 0 then 1
+  else if x = 1 then 2
+  else if x = 2 then 3
+  else if x = 3 then 4
+  else if x = 4 then 5
+  else if x = 5 then 6
+  else x + 1
+;;
+:: val plus_one_if : int -> int = <fun>
+```
 
 Note the use of `_` in the above match. This is a wildcard pattern that
 matches any value, but without binding a variable name to the value in
@@ -141,7 +231,25 @@ the number of cases increases. Here, we'll benchmark these functions using
 the `core_bench` library, which can be installed by running
 `opam install core_bench` from the command line.
 
-<link rel="import" href="code/lists-and-patterns/main.mlt" part="10" />
+```ocaml
+#require "core_bench";;
+
+open Core_bench;;
+
+[ Bench.Test.create ~name:"plus_one_match" (fun () ->
+      ignore (plus_one_match 10))
+; Bench.Test.create ~name:"plus_one_if" (fun () ->
+      ignore (plus_one_if 10)) ]
+|> Bench.bench
+;;
+1> Estimated testing time 20s (2 benchmarks x 10s). Change using -quota SECS.
+1> ┌────────────────┬──────────┐
+1> │ Name           │ Time/Run │
+1> ├────────────────┼──────────┤
+1> │ plus_one_match │  34.86ns │
+1> │ plus_one_if    │  54.89ns │
+1> └────────────────┴──────────┘:: - : unit = ()
+```
 
 Here's another, less artificial example. We can rewrite the `sum` function we
 described earlier in the chapter using an `if` statement rather than a match.
@@ -149,11 +257,30 @@ We can then use the functions `is_empty`, `hd_exn`, and `tl_exn` from the
 `List` module to deconstruct the list, allowing us to implement the entire
 function without pattern matching:
 
-<link rel="import" href="code/lists-and-patterns/main.mlt" part="11" />
+```ocaml
+let rec sum_if l =
+  if List.is_empty l then 0
+  else List.hd_exn l + sum_if (List.tl_exn l)
+;;
+:: val sum_if : int list -> int = <fun>
+```
 
 Again, we can benchmark these to see the difference:
 
-<link rel="import" href="code/lists-and-patterns/main.mlt" part="12" />
+```ocaml
+let numbers = List.range 0 1000 in
+[ Bench.Test.create ~name:"sum_if" (fun () -> ignore (sum_if numbers))
+; Bench.Test.create ~name:"sum"    (fun () -> ignore (sum numbers)) ]
+|> Bench.bench
+;;
+1> Estimated testing time 20s (2 benchmarks x 10s). Change using -quota SECS.
+1> ┌────────┬──────────┐
+1> │ Name   │ Time/Run │
+1> ├────────┼──────────┤
+1> │ sum_if │  62.00us │
+1> │ sum    │  17.99us │
+1> └────────┴──────────┘:: - : unit = ()
+```
 
 In this case, the `match`-based implementation is many times faster than the
 `if`-based implementation. The difference comes because we need to
@@ -181,7 +308,17 @@ happens if we modify `drop_zero` by deleting the handler for one of the
 cases. As you can see, the compiler will produce a warning that we've missed
 a case, along with an example of an unmatched pattern:
 
-<link rel="import" href="code/lists-and-patterns/main.mlt" part="13" />
+```ocaml
+let rec drop_zero l =
+  match l with
+  | [] -> []
+  | 0  :: tl -> drop_zero tl
+;;
+1> Characters 24-78:
+1> Warning 8: this pattern-matching is not exhaustive.
+1> Here is an example of a case that is not matched:
+1> 1::_:: val drop_zero : int list -> 'a list = <fun>
+```
 
 Even for simple examples like this, exhaustiveness checks are pretty useful.
 But as we'll see in [Variants](variants.html#variants){data-type=xref},
@@ -205,7 +342,22 @@ Let's work through a concrete example. We'll write a function `render_table`
 that, given a list of column headers and a list of rows, prints them out in a
 well-formatted text table, as follows:
 
-<link rel="import" href="code/lists-and-patterns/main.mlt" part="69" />
+```ocaml
+Stdio.print_endline
+  (render_table
+     ["language";"architect";"first release"]
+     [ ["Lisp" ;"John McCarthy" ;"1958"] ;
+       ["C"    ;"Dennis Ritchie";"1969"] ;
+       ["ML"   ;"Robin Milner"  ;"1973"] ;
+       ["OCaml";"Xavier Leroy"  ;"1996"] ;
+     ]);;
+1> | language | architect      | first release |
+1> |----------+----------------+---------------|
+1> | Lisp     | John McCarthy  | 1958          |
+1> | C        | Dennis Ritchie | 1969          |
+1> | ML       | Robin Milner   | 1973          |
+1> | OCaml    | Xavier Leroy   | 1996          |:: - : unit = ()
+```
 
 The first step is to write a function to compute the maximum width of each
 column of data. We can do this by converting the header and each row into a
@@ -218,18 +370,27 @@ the `List` module: `map`, `map2_exn`, and `fold`.
 transforming elements of that list, and returns a new list with the
 transformed elements. Thus, we can write:[List module/List.map]{.idx}
 
-<link rel="import" href="code/lists-and-patterns/main.mlt" part="14" />
+```ocaml
+List.map ~f:String.length ["Hello"; "World!"];;
+:: - : int list = [5; 6]
+```
 
 `List.map2_exn` is similar to `List.map`, except that it takes two lists and
 a function for combining them. Thus, we might write:[List
 module/List.map2_exn]{.idx}
 
-<link rel="import" href="code/lists-and-patterns/main.mlt" part="15" />
+```ocaml
+List.map2_exn ~f:Int.max [1;2;3] [3;2;1];;
+:: - : int list = [3; 2; 3]
+```
 
 The `_exn` is there because the function throws an exception if the lists are
 of mismatched length:
 
-<link rel="import" href="code/lists-and-patterns/main.mlt" part="16" />
+```ocaml
+List.map2_exn ~f:Int.max [1;2;3] [3;2;1;0];;
+1> Exception: (Invalid_argument "length mismatch in map2_exn: 3 <> 4 ").
+```
 
 `List.fold` is the most complicated of the three, taking three arguments: a
 list to process, an initial accumulator value, and a function for updating
@@ -238,23 +399,41 @@ the accumulator at each step and returning the final value of the accumulator
 when it's done. You can see some of this by looking at the type-signature for
 `fold`:[List module/List.fold]{.idx}
 
-<link rel="import" href="code/lists-and-patterns/main.mlt" part="17" />
+```ocaml
+List.fold;;
+:: - : 'a list -> init:'accum -> f:('accum -> 'a -> 'accum) -> 'accum = <fun>
+```
 
 We can use `List.fold` for something as simple as summing up a list:
 
-<link rel="import" href="code/lists-and-patterns/main.mlt" part="18" />
+```ocaml
+List.fold ~init:0 ~f:(+) [1;2;3;4];;
+:: - : int = 10
+```
 
 This example is particularly simple because the accumulator and the list
 elements are of the same type. But `fold` is not limited to such cases. We
 can for example use `fold` to reverse a list, in which case the accumulator
 is itself a list:
 
-<link rel="import" href="code/lists-and-patterns/main.mlt" part="19" />
+```ocaml
+List.fold ~init:[] ~f:(fun list x -> x :: list) [1;2;3;4];;
+:: - : int list = [4; 3; 2; 1]
+```
 
 Let's bring our three functions together to compute the maximum column
 widths:
 
-<link rel="import" href="code/lists-and-patterns/main.mlt" part="20" />
+```ocaml
+let max_widths header rows =
+  let lengths l = List.map ~f:String.length l in
+  List.fold rows
+    ~init:(lengths header)
+    ~f:(fun acc row ->
+        List.map2_exn ~f:Int.max acc (lengths row))
+;;
+:: val max_widths : string list -> string list list -> int list = <fun>
+```
 
 Using `List.map` we define the function `lengths`, which converts a list of
 strings to a list of integer lengths. `List.fold` is then used to iterate
@@ -271,7 +450,17 @@ concatenates a list of strings with an optional separator string, and
 `^`, which is a pairwise string concatenation function, to add the delimiters
 on the outside:
 
-<link rel="import" href="code/lists-and-patterns/main.mlt" part="21" />
+```ocaml
+let render_separator widths =
+  let pieces = List.map widths
+      ~f:(fun w -> String.make (w + 2) '-')
+  in
+  "|" ^ String.concat ~sep:"+" pieces ^ "|"
+;;
+:: val render_separator : int list -> string = <fun>
+render_separator [3;6;2];;
+:: - : string = "|-----+--------+----|"
+```
 
 Note that we make the line of dashes two larger than the provided width to
 provide some whitespace around each entry in the table.[strings/concatenation
@@ -285,11 +474,17 @@ In the preceding code we’ve concatenated strings two different ways:
 pairwise operator. You should avoid `^` for joining long numbers of strings,
 since it allocates a new string every time it runs. Thus, the following code
 
-<link rel="import" href="code/lists-and-patterns/main.mlt" part="22" />
+```ocaml
+let s = "." ^ "."  ^ "."  ^ "."  ^ "."  ^ "."  ^ ".";;
+:: val s : string = "......."
+```
 
 will allocate strings of length 2, 3, 4, 5, 6 and 7, whereas this code
 
-<link rel="import" href="code/lists-and-patterns/main.mlt" part="23" />
+```ocaml
+let s = String.concat [".";".";".";".";".";".";"."];;
+:: val s : string = "......."
+```
 
 allocates one string of size 7, as well as a list of length 7. At these small
 sizes, the differences don't amount to much, but for assembling large
@@ -301,18 +496,43 @@ Now we need code for rendering a row with data in it. We'll first write a
 function called `pad`, for padding out a string to a specified length plus
 one blank space on both sides:[strings/padding of]{.idx}
 
-<link rel="import" href="code/lists-and-patterns/main.mlt" part="24" />
+```ocaml
+let pad s length =
+  " " ^ s ^ String.make (length - String.length s + 1) ' '
+;;
+:: val pad : string -> int -> string = <fun>
+pad "hello" 10;;
+:: - : string = " hello      "
+```
 
 We can render a row of data by merging together the padded strings. Again,
 we'll use `List.map2_exn` for combining the list of data in the row with the
 list of widths:
 
-<link rel="import" href="code/lists-and-patterns/main.mlt" part="25" />
+```ocaml
+let render_row row widths =
+  let padded = List.map2_exn row widths ~f:pad in
+  "|" ^ String.concat ~sep:"|" padded ^ "|"
+;;
+:: val render_row : string list -> int list -> string = <fun>
+render_row ["Hello";"World"] [10;15];;
+:: - : string = "| Hello      | World           |"
+```
 
 Now we can bring this all together in a single function that renders the
 table:
 
-<link rel="import" href="code/lists-and-patterns/main.mlt" part="26" />
+```ocaml
+let render_table header rows =
+  let widths = max_widths header rows in
+  String.concat ~sep:"\n"
+    (render_row header widths
+     :: render_separator widths
+     :: List.map rows ~f:(fun row -> render_row row widths)
+    )
+;;
+:: val render_table : string list -> string list list -> string = <fun>
+```
 
 ### More Useful List Functions {#more-useful-list-functions}
 
@@ -334,14 +554,22 @@ in]{.idx}
 
 Here's the type signature:
 
-<link rel="import" href="code/lists-and-patterns/main.mlt" part="27" />
+```ocaml
+List.reduce;;
+:: - : 'a list -> f:('a -> 'a -> 'a) -> 'a option = <fun>
+```
 
 `reduce` returns an optional result, returning `None` when the input list is
 empty.
 
 Now we can see `reduce` in action:
 
-<link rel="import" href="code/lists-and-patterns/main.mlt" part="28" />
+```ocaml
+List.reduce ~f:(+) [1;2;3;4;5];;
+:: - : int option = Some 15
+List.reduce ~f:(+) [];;
+:: - : int option = None
+```
 
 #### Filtering with List.filter and List.filter_map {#filtering-with-list.filter-and-list.filter_map}
 
@@ -350,7 +578,10 @@ subset of the values on your list. The `List.filter` function is one way of
 doing that:[lists/filtering values in]{.idx}[values/filtering with
 List.filter]{.idx}[List module/List.filter]{.idx}
 
-<link rel="import" href="code/lists-and-patterns/main.mlt" part="29" />
+```ocaml
+List.filter ~f:(fun x -> x % 2 = 0) [1;2;3;4;5];;
+:: - : int list = [2; 4]
+```
 
 Note that the `mod` used above is an infix operator, as described in
 [Variables And Functions](variables-and-functions.html#variables-and-functions){data-type=xref}.
@@ -366,7 +597,19 @@ duplicates. Note that this example uses `String.rsplit2` from the String
 module to split a string on the rightmost appearance of a given
 character:[lists/duplicate removal]{.idx}[duplicates, removing]{.idx}
 
-<link rel="import" href="code/lists-and-patterns/main.mlt" part="30" />
+```ocaml
+let extensions filenames =
+  List.filter_map filenames ~f:(fun fname ->
+      match String.rsplit2 ~on:'.' fname with
+      | None  | Some ("",_) -> None
+      | Some (_,ext) ->
+        Some ext)
+  |> List.dedup_and_sort ~compare:String.compare
+;;
+:: val extensions : string list -> string list = <fun>
+extensions ["foo.c"; "foo.ml"; "bar.ml"; "bar.mli"];;
+:: - : string list = ["c"; "ml"; "mli"]
+```
 
 The preceding code is also an example of an Or pattern, which allows you to
 have multiple subpatterns within a larger pattern. In this case,
@@ -384,7 +627,18 @@ example:[elements/partitioning with
 List.partition_tf]{.idx}[lists/partitioning elements in]{.idx}[List
 module/List.partition_tf]{.idx}
 
-<link rel="import" href="code/lists-and-patterns/main.mlt" part="31" />
+```ocaml
+let is_ocaml_source s =
+  match String.rsplit2 s ~on:'.' with
+  | Some (_,("ml"|"mli")) -> true
+  | _ -> false
+;;
+:: val is_ocaml_source : string -> bool = <fun>
+let (ml_files,other_files) =
+  List.partition_tf ["foo.c"; "foo.ml"; "bar.ml"; "bar.mli"]  ~f:is_ocaml_source;;
+:: val ml_files : string list = ["foo.ml"; "bar.ml"; "bar.mli"]
+:: val other_files : string list = ["foo.c"]
+```
 
 #### Combining lists {#combining-lists}
 
@@ -393,20 +647,43 @@ actually comes with a few different ways of doing this. There's
 `List.append`, for concatenating a pair of lists.
 [lists/combining]{.idx}[List module/List.append]{.idx}
 
-<link rel="import" href="code/lists-and-patterns/main.mlt" part="32" />
+```ocaml
+List.append [1;2;3] [4;5;6];;
+:: - : int list = [1; 2; 3; 4; 5; 6]
+```
 
 There's also `@`, an operator equivalent of `List.append`.
 
-<link rel="import" href="code/lists-and-patterns/main.mlt" part="33" />
+```ocaml
+[1;2;3] @ [4;5;6];;
+:: - : int list = [1; 2; 3; 4; 5; 6]
+```
 
 In addition, there is `List.concat`, for concatenating a list of lists:
 
-<link rel="import" href="code/lists-and-patterns/main.mlt" part="34" />
+```ocaml
+List.concat [[1;2];[3;4;5];[6];[]];;
+:: - : int list = [1; 2; 3; 4; 5; 6]
+```
 
 Here's an example of using `List.concat` along with `List.map` to compute a
 recursive listing of a directory tree.
 
-<link rel="import" href="code/lists-and-patterns/main.mlt" part="35" />
+```ocaml
+module Sys = Core.Sys
+module Filename = Core.Filename;;
+:: module Sys = Core.Sys
+:: module Filename = Core.Filename
+let rec ls_rec s =
+  if Sys.is_file_exn ~follow_symlinks:true s
+  then [s]
+  else
+    Sys.ls_dir s
+    |> List.map ~f:(fun sub -> ls_rec (Filename.concat s sub))
+    |> List.concat
+;;
+:: val ls_rec : string -> string list = <fun>
+```
 
 Note that this example uses some functions from the `Sys` and `Filename`
 modules from `Core` for accessing the filesystem and dealing with filenames.
@@ -415,9 +692,16 @@ The preceding combination of `List.map` and `List.concat` is common enough
 that there is a function `List.concat_map` that combines these into one, more
 efficient operation:
 
-<link rel="import" href="code/lists-and-patterns/main.mlt" part="36" />
-
-
+```ocaml
+let rec ls_rec s =
+  if Sys.is_file_exn ~follow_symlinks:true s
+  then [s]
+  else
+    Sys.ls_dir s
+    |> List.concat_map ~f:(fun sub -> ls_rec (Filename.concat s sub))
+;;
+:: val ls_rec : string -> string list = <fun>
+```
 
 ## Tail Recursion {#tail-recursion}
 
@@ -427,12 +711,27 @@ linear in the size of the list. Here's a simple function for doing so:[List
 module/List.init]{.idx}[lists/computing length of]{.idx}[tail
 recursion]{.idx}[recursion/tail recursion]{.idx}
 
-<link rel="import" href="code/lists-and-patterns/main.mlt" part="37" />
+```ocaml
+let rec length = function
+  | [] -> 0
+  | _ :: tl -> 1 + length tl
+;;
+:: val length : 'a list -> int = <fun>
+length [1;2;3];;
+:: - : int = 3
+```
 
 This looks simple enough, but you'll discover that this implementation runs
 into problems on very large lists, as we'll show in the following code:
 
-<link rel="import" href="code/lists-and-patterns/main.mlt" part="38" />
+```ocaml
+let make_list n = List.init n ~f:(fun x -> x);;
+:: val make_list : int -> int list = <fun>
+length (make_list 10);;
+:: - : int = 10
+length (make_list 10_000_000);;
+1> Stack overflow during evaluation (looping recursion?).
+```
 
 The preceding example creates lists using `List.init`, which takes an integer
 `n` and a function `f` and creates a list of length `n`, where the data for
@@ -452,7 +751,18 @@ million stack frames, which exhausted the available stack space. Happily,
 there's a way around this problem. Consider the following alternative
 implementation:
 
-<link rel="import" href="code/lists-and-patterns/main.mlt" part="39" />
+```ocaml
+let rec length_plus_n l n =
+  match l with
+  | [] -> n
+  | _ :: tl -> length_plus_n tl (n + 1)
+;;
+:: val length_plus_n : 'a list -> int -> int = <fun>
+let length l = length_plus_n l 0 ;;
+:: val length : 'a list -> int = <fun>
+length [1;2;3;4];;
+:: - : int = 4
+```
 
 This implementation depends on a helper function, `length_plus_n`, that
 computes the length of a given list plus a given `n`. In practice, `n` acts
@@ -470,7 +780,10 @@ if all of its recursive calls are tail calls. `length_plus_n` is indeed tail
 recursive, and as a result, `length` can take a long list as input without
 blowing the stack:[tail calls]{.idx}
 
-<link rel="import" href="code/lists-and-patterns/main.mlt" part="40" />
+```ocaml
+length (make_list 10_000_000);;
+:: - : int = 10000000
+```
 
 So when is a call a tail call? Let's think about the situation where one
 function (the *caller*) invokes another (the *callee*). The invocation is
@@ -499,7 +812,17 @@ function]{.idx}[pattern matching/terser and faster
 patterns]{.idx #PTTRNMAT}[lists/duplicate removal]{.idx}[duplicates,
 removing]{.idx}
 
-<link rel="import" href="code/lists-and-patterns/main.mlt" part="41" />
+```ocaml
+let rec destutter list =
+  match list with
+  | [] -> []
+  | [hd] -> [hd]
+  | hd :: hd' :: tl ->
+    if hd = hd' then destutter (hd' :: tl)
+    else hd :: destutter (hd' :: tl)
+;;
+:: val destutter : int list -> int list = <fun>
+```
 
 We'll consider some ways of making this code more concise and more efficient.
 
@@ -513,19 +836,43 @@ matched by a pattern or subpattern. While we're at it, we'll use the
 `function` keyword to eliminate the need for an explicit match:[function
 keyword]{.idx}
 
-<link rel="import" href="code/lists-and-patterns/main.mlt" part="42" />
+```ocaml
+let rec destutter = function
+  | [] as l -> l
+  | [_] as l -> l
+  | hd :: (hd' :: _ as tl) ->
+    if hd = hd' then destutter tl
+    else hd :: destutter tl
+;;
+:: val destutter : int list -> int list = <fun>
+```
 
 We can further collapse this by combining the first two cases into one, using
 an *or pattern*:
 
-<link rel="import" href="code/lists-and-patterns/main.mlt" part="43" />
+```ocaml
+let rec destutter = function
+  | [] | [_] as l -> l
+  | hd :: (hd' :: _ as tl) ->
+    if hd = hd' then destutter tl
+    else hd :: destutter tl
+;;
+:: val destutter : int list -> int list = <fun>
+```
 
 We can make the code slightly terser now by using a `when` clause. A 
 `when` clause allows us to add an extra precondition to a pattern in the form
 of an arbitrary OCaml expression. In this case, we can use it to include the
 check on whether the first two elements are equal:
 
-<link rel="import" href="code/lists-and-patterns/main.mlt" part="44" />
+```ocaml
+let rec destutter = function
+  | [] | [_] as l -> l
+  | hd :: (hd' :: _ as tl) when hd = hd' -> destutter tl
+  | hd :: tl -> hd :: destutter tl
+;;
+:: val destutter : int list -> int list = <fun>
+```
 
 <aside data-type="sidebar">
 <h5>Polymorphic Compare</h5>
@@ -534,22 +881,50 @@ You might have noticed that `destutter` is specialized to lists of integers.
 That's because `Base`'s default equality operator is specialized to integers,
 as you can see if you try to apply it to values of a different type.
 
-<link rel="import" href="code/lists-and-patterns/poly.mlt" part="1" />
+```ocaml
+"foo" = "bar";;
+1> Characters 0-5:
+1> Error: This expression has type string but an expression was expected of type
+1>          int
+```
 
 OCaml also has a collection of polymorphic equality and comparison operators,
 which we can make available by opening the module `Base.Poly`.
 
-<link rel="import" href="code/lists-and-patterns/poly.mlt" part="2" />
+```ocaml
+open Base.Poly;;
+
+"foo" = "bar";;
+:: - : bool = false
+3 = 4;;
+:: - : bool = false
+[1;2;3] = [1;2;3];;
+:: - : bool = true
+```
 
 Indeed, if we look at the type of the equality operator, we'll see that it is
 polymorphic.
 
-<link rel="import" href="code/lists-and-patterns/poly.mlt" part="3" />
+```ocaml
+(=);;
+:: - : 'a -> 'a -> bool = <fun>
+```
 
 If we rewrite our destutter example with `Base.Poly` open, we'll see that it
 gets a polymorphic type, and can now be used on inputs of different types.
 
-<link rel="import" href="code/lists-and-patterns/poly.mlt" part="4" />
+```ocaml
+let rec destutter = function
+  | [] | [_] as l -> l
+  | hd :: (hd' :: _ as tl) when hd = hd' -> destutter tl
+  | hd :: tl -> hd :: destutter tl
+;;
+:: val destutter : 'a list -> 'a list = <fun>
+destutter [1;2;2;3;4;3;3];;
+:: - : int list = [1; 2; 3; 4; 3]
+destutter ["one";"two";"two";"two";"three"];;
+:: - : string list = ["one"; "two"; "three"]
+```
 
 OCaml comes with a whole family of polymorphic comparison operators,
 including the standard infix comparators, `<`, `>=`, etc., as well as the
@@ -568,7 +943,10 @@ they're laid out in memory. (You can learn more about this structure in
 Polymorphic compare does have some limitations. For example, it will fail at
 runtime if it encounters a function value.
 
-<link rel="import" href="code/lists-and-patterns/poly.mlt" part="5" />
+```ocaml
+(fun x -> x + 1) = (fun x -> x + 1);;
+1> Exception: (Invalid_argument "compare: functional value").
+```
 
 Similarly, it will fail on values that come from outside the OCaml heap, like
 values from C bindings. But it will work in a reasonable way for most other
@@ -592,7 +970,10 @@ We'll discuss this issue more in
 But in any case, you can restore the default behavior of `Base` by opening
 the module again.
 
-<link rel="import" href="code/lists-and-patterns/poly.mlt" part="6" />
+```ocaml
+open Base;;
+
+```
 
 </aside>
 
@@ -608,26 +989,66 @@ returns the number of those values that are `Some`. Because this
 implementation uses `when` clauses, the compiler can't tell that the code is
 exhaustive:
 
-<link rel="import" href="code/lists-and-patterns/main.mlt" part="48" />
+```ocaml
+let rec count_some list =
+  match list with
+  | [] -> 0
+  | x :: tl when Option.is_none x -> count_some tl
+  | x :: tl when Option.is_some x -> 1 + count_some tl
+;;
+1> Characters 28-161:
+1> Warning 8: this pattern-matching is not exhaustive.
+1> Here is an example of a case that is not matched:
+1> _::_
+1> (However, some guarded clause may match this value.):: val count_some : 'a option list -> int = <fun>
+```
 
 Despite the warning, the function does work fine:
 
-<link rel="import" href="code/lists-and-patterns/main.mlt" part="49" />
+```ocaml
+count_some [Some 3; None; Some 4];;
+:: - : int = 2
+```
 
 If we add another redundant case without a `when` clause, the compiler will
 stop complaining about exhaustiveness and won't produce a warning about the
 redundancy.
 
-<link rel="import" href="code/lists-and-patterns/main.mlt" part="50" />
+```ocaml
+let rec count_some list =
+  match list with
+  | [] -> 0
+  | x :: tl when Option.is_none x -> count_some tl
+  | x :: tl when Option.is_some x -> 1 + count_some tl
+  | x :: tl -> -1 (* unreachable *)
+;;
+:: val count_some : 'a option list -> int = <fun>
+```
 
 Probably a better approach is to simply drop the second `when` clause:
 
-<link rel="import" href="code/lists-and-patterns/main.mlt" part="51" />
+```ocaml
+let rec count_some list =
+  match list with
+  | [] -> 0
+  | x :: tl when Option.is_none x -> count_some tl
+  | _ :: tl -> 1 + count_some tl
+;;
+:: val count_some : 'a option list -> int = <fun>
+```
 
 This is a little less clear, however, than the direct pattern-matching
 solution, where the meaning of each pattern is clearer on its own:
 
-<link rel="import" href="code/lists-and-patterns/main.mlt" part="52" />
+```ocaml
+let rec count_some list =
+  match list with
+  | [] -> 0
+  | None   :: tl -> count_some tl
+  | Some _ :: tl -> 1 + count_some tl
+;;
+:: val count_some : 'a option list -> int = <fun>
+```
 
 The takeaway from all of this is although `when` clauses can be useful, we
 should prefer patterns wherever they are sufficient.
@@ -636,6 +1057,8 @@ As a side note, the above implementation of `count_some` is longer than
 necessary; even worse, it is not tail recursive. In real life, you would
 probably just use the `List.count` function from `Core_kernel`:
 
-<link rel="import" href="code/lists-and-patterns/main.mlt" part="53" />
-
+```ocaml
+let count_some l = List.count ~f:Option.is_some l;;
+:: val count_some : 'a option list -> int = <fun>
+```
 

@@ -53,7 +53,10 @@ you can try out the examples as you read through the chapter.
 Our first step is to open `Base`: [OCaml/numerical calculations
 in]{.idx}[numerical calculations]{.idx}[Core standard library/opening]{.idx}
 
-<link rel="import" href="code/guided-tour/main.mlt" part="0.5" />
+```ocaml
+open Base;;
+
+```
 
 By opening `Base`, we make the definitions it contains available without
 having to reference `Base` explicitly. This is required for many of the
@@ -61,7 +64,18 @@ examples in the tour and in the remainder of the book.
 
 Now let's try a few simple numerical calculations:
 
-<link rel="import" href="code/guided-tour/main.mlt" part="1" />
+```ocaml
+3 + 4;;
+:: - : int = 7
+8 / 3;;
+:: - : int = 2
+3.5 +. 6.;;
+:: - : float = 9.5
+30_000_000 / 300_000;;
+:: - : int = 100
+3 * 5 > 14;;
+:: - : bool = true
+```
 
 By and large, this is pretty similar to what you'd find in any programming
 language, but a few things jump right out at you:
@@ -96,7 +110,12 @@ language, but a few things jump right out at you:
 We can also create a variable to name the value of a given expression, using
 the `let` keyword. This is known as a *let binding*:
 
-<link rel="import" href="code/guided-tour/main.mlt" part="2" />
+```ocaml
+let x = 3 + 4;;
+:: val x : int = 7
+let y = x + x;;
+:: val y : int = 14
+```
 
 After a new variable is created, the toplevel tells us the name of the
 variable (`x` or `y`), in addition to its type (`int`) and value (`7` or
@@ -107,11 +126,28 @@ variable names. Punctuation is excluded, except for `_` and `'`, and
 variables must start with a lowercase letter or an underscore. Thus, these
 are legal:
 
-<link rel="import" href="code/guided-tour/main.mlt" part="3" />
+```ocaml
+let x7 = 3 + 4;;
+:: val x7 : int = 7
+let x_plus_y = x + y;;
+:: val x_plus_y : int = 21
+let x' = x + 1;;
+:: val x' : int = 8
+```
 
 The following examples, however, are not legal:
 
-<link rel="import" href="code/guided-tour/main.mlt" part="4" />
+```ocaml
+let Seven = 3 + 4;;
+1> Characters 4-9:
+1> Error: Unbound constructor Seven
+let 7x = 7;;
+1> Characters 4-6:
+1> Error: Unknown modifier 'x' for literal 7x
+let x-plus-y = x + y;;
+1> Characters 6-10:
+1> Error: Syntax error
+```
 
 This highlights that variables can't be capitalized, can't begin with
 numbers, and can't contain dashes.
@@ -121,7 +157,14 @@ numbers, and can't contain dashes.
 The `let` syntax can also be used to define a function:[let syntax/function
 definition with]{.idx}[functions/defining]{.idx}
 
-<link rel="import" href="code/guided-tour/main.mlt" part="5" />
+```ocaml
+let square x = x * x ;;
+:: val square : int -> int = <fun>
+square 2;;
+:: - : int = 4
+square (square 2);;
+:: - : int = 16
+```
 
 Functions in OCaml are values like any other, which is why we use the
 `let` keyword to bind a function to a variable name, just as we use `let` to
@@ -137,7 +180,14 @@ also write functions that take multiple arguments. (Reminder: Don't forget
 `open Base`, or these examples won't work!) [multi-argument
 functions]{.idx}[functions/with multiple arguments]{.idx}
 
-<link rel="import" href="code/guided-tour/main.mlt" part="6" />
+```ocaml
+let ratio x y =
+  Float.of_int x /. Float.of_int y
+;;
+:: val ratio : int -> int -> float = <fun>
+ratio 4 7;;
+:: - : float = 0.5714285714285714
+```
 
 The preceding example also happens to be our first use of modules. Here,
 `Float.of_int` refers to the `of_int` function contained in the `Float`
@@ -154,13 +204,24 @@ slightly awkward `/.` operator. In the following example, we open the
 are designed to be used in this kind of context. Note that this causes the
 standard int-only arithmetic operators to be shadowed locally.
 
-<link rel="import" href="code/guided-tour/main.mlt" part="6.1" />
+```ocaml
+let ratio x y =
+  let open Float.O in
+  of_int x / of_int y
+;;
+:: val ratio : int -> int -> float = <fun>
+```
 
 Note that we used a slightly different syntax for opening the module, since
 we were only opening it in the local scope inside the definition of `ratio`.
 There's also a more concise syntax for local opens, as you can see here.
 
-<link rel="import" href="code/guided-tour/main.mlt" part="6.2" />
+```ocaml
+let ratio x y =
+  Float.O.(of_int x / of_int y)
+;;
+:: val ratio : int -> int -> float = <fun>
+```
 
 The notation for the type-signature of a multiargument function may be a
 little surprising at first, but we'll explain where it comes from when we get
@@ -176,14 +237,28 @@ example of a function that takes three arguments: a test function and two
 integer arguments. The function returns the sum of the integers that pass the
 test:
 
-<link rel="import" href="code/guided-tour/main.mlt" part="7" />
+```ocaml
+let sum_if_true test first second =
+  (if test first then first else 0)
+  + (if test second then second else 0)
+;;
+:: val sum_if_true : (int -> bool) -> int -> int -> int = <fun>
+```
 
 If we look at the inferred type signature in detail, we see that the first
 argument is a function that takes an integer and returns a boolean, and that
 the remaining two arguments are integers. Here's an example of this function
 in action:
 
-<link rel="import" href="code/guided-tour/main.mlt" part="8" />
+```ocaml
+let even x =
+  x % 2 = 0 ;;
+:: val even : int -> bool = <fun>
+sum_if_true even 3 4;;
+:: - : int = 4
+sum_if_true even 2 4;;
+:: - : int = 6
+```
 
 Note that in the definition of `even`, we used `=` in two different ways:
 once as part of the `let` binding that separates the thing being defined from
@@ -238,7 +313,13 @@ piece of code fails to compile.
 
 Here's an annotated version of `sum_if_true`:
 
-<link rel="import" href="code/guided-tour/main.mlt" part="9" />
+```ocaml
+let sum_if_true (test : int -> bool) (x : int) (y : int) : int =
+  (if test x then x else 0)
+  + (if test y then y else 0)
+;;
+:: val sum_if_true : (int -> bool) -> int -> int -> int = <fun>
+```
 
 In the above, we've marked every argument to the function with its type, with
 the final annotation indicating the type of the return value. Such type
@@ -250,7 +331,12 @@ Sometimes, there isn't enough information to fully determine the concrete
 type of a given value. Consider this function..[type inference/generic
 types]{.idx}
 
-<link rel="import" href="code/guided-tour/main.mlt" part="10" />
+```ocaml
+let first_if_true test x y =
+  if test x then x else y
+;;
+:: val first_if_true : ('a -> bool) -> 'a -> 'a -> 'a = <fun>
+```
 
 `first_if_true` takes as its arguments a function `test`, and two values,
 `x` and `y`, where `x` is to be returned if `test x` evaluates to `true`, and
@@ -274,18 +360,33 @@ polymorphism]{.idx}[type variables]{.idx}
 
 Because the type of `first_if_true` is generic, we can write this:
 
-<link rel="import" href="code/guided-tour/main.mlt" part="11" />
+```ocaml
+let long_string s = String.length s > 6;;
+:: val long_string : string -> bool = <fun>
+first_if_true long_string "short" "loooooong";;
+:: - : string = "loooooong"
+```
 
 As well as this:
 
-<link rel="import" href="code/guided-tour/main.mlt" part="12" />
+```ocaml
+let big_number x = x > 3;;
+:: val big_number : int -> bool = <fun>
+first_if_true big_number 4 3;;
+:: - : int = 4
+```
 
 Both `long_string` and `big_number` are functions, and each is passed to
 `first_if_true` with two other arguments of the appropriate type (strings in
 the first example, and integers in the second). But we can't mix and match
 two different concrete types for `'a` in the same use of `first_if_true`:
 
-<link rel="import" href="code/guided-tour/main.mlt" part="13" />
+```ocaml
+first_if_true big_number "short" "loooooong";;
+1> Characters 25-32:
+1> Error: This expression has type string but an expression was expected of type
+1>          int
+```
 
 In this example, `big_number` requires that `'a` be instantiated as `int`,
 whereas `"short"` and `"loooooong"` require that `'a` be instantiated as
@@ -305,13 +406,28 @@ Working in the toplevel somewhat obscures the difference between runtime and
 compile-time errors, but that difference is still there. Generally, type
 errors like this one:
 
-<link rel="import" href="code/guided-tour/main.mlt" part="14" />
+```ocaml
+let add_potato x =
+  x + "potato";;
+1> Characters 25-33:
+1> Error: This expression has type string but an expression was expected of type
+1>          int
+```
 
 are compile-time errors (because `+` requires that both its arguments be of
 type `int`), whereas errors that can't be caught by the type system, like
 division by zero, lead to runtime exceptions:
 
-<link rel="import" href="code/guided-tour/main.mlt" part="15" />
+```ocaml
+let is_a_multiple x y =
+  x % y = 0 ;;
+:: val is_a_multiple : int -> int -> bool = <fun>
+is_a_multiple 8 2;;
+:: - : bool = true
+is_a_multiple 8 0;;
+1> Exception:
+1> (Invalid_argument "8 % 0 in core_int.ml: modulus should be positive").
+```
 
 The distinction here is that type errors will stop you whether or not the
 offending code is ever actually executed. Merely defining `add_potato` is an
@@ -332,7 +448,12 @@ simple data structure, the tuple. A tuple is an ordered collection of values
 that can each be of a different type. You can create a tuple by joining
 values together with a comma. [tuples]{.idx}[data structures/tuples]{.idx}
 
-<link rel="import" href="code/guided-tour/main.mlt" part="16" />
+```ocaml
+let a_tuple = (3,"three");;
+:: val a_tuple : int * string = (3, "three")
+let another_tuple = (3,"four",5.);;
+:: val another_tuple : int * string * float = (3, "four", 5.)
+```
 
 (For the mathematically inclined, `*` is used in the type `t * s` because
 that type corresponds to the set of all pairs containing one value of type
@@ -342,14 +463,21 @@ two types, which is why we use ` * `, the symbol for product.)
 You can extract the components of a tuple using OCaml's pattern-matching
 syntax, as shown below:
 
-<link rel="import" href="code/guided-tour/main.mlt" part="17" />
+```ocaml
+let (x,y) = a_tuple;;
+:: val x : int = 3
+:: val y : string = "three"
+```
 
 Here, the `(x,y)` on the left-hand side of the `let` binding is the pattern.
 This pattern lets us mint the new variables `x` and `y`, each bound to
 different components of the value being matched. These can now be used in
 subsequent expressions:
 
-<link rel="import" href="code/guided-tour/main.mlt" part="18" />
+```ocaml
+x + String.length y;;
+:: - : int = 8
+```
 
 Note that the same syntax is used both for constructing and for pattern
 matching on tuples.
@@ -359,7 +487,12 @@ for computing the distance between two points on the plane, where each point
 is represented as a pair of `float`s. The pattern-matching syntax lets us get
 at the values we need with a minimum of fuss:
 
-<link rel="import" href="code/guided-tour/main.mlt" part="19" />
+```ocaml
+let distance (x1,y1) (x2,y2) =
+  Float.sqrt ((x1 -. x2) **. 2. +. (y1 -. y2) **. 2.)
+;;
+:: val distance : float * float -> float * float -> float = <fun>
+```
 
 The `**.` operator used above is for raising a floating-point number to a
 power.
@@ -373,12 +506,20 @@ Where tuples let you combine a fixed number of items, potentially of
 different types, lists let you hold any number of items of the same type.
 Consider the following example:[data structures/lists]{.idx #DSlists}
 
-<link rel="import" href="code/guided-tour/main.mlt" part="20" />
+```ocaml
+let languages = ["OCaml";"Perl";"C"];;
+:: val languages : string list = ["OCaml"; "Perl"; "C"]
+```
 
 Note that you can't mix elements of different types in the same list, unlike
 tuples:
 
-<link rel="import" href="code/guided-tour/main.mlt" part="21" />
+```ocaml
+let numbers = [3;"four";5];;
+1> Characters 17-23:
+1> Error: This expression has type string but an expression was expected of type
+1>          int
+```
 
 #### The List module {#the-list-module}
 
@@ -386,12 +527,18 @@ tuples:
 working with lists. We can access values from within a module by using dot
 notation. For example, this is how we compute the length of a list:
 
-<link rel="import" href="code/guided-tour/main.mlt" part="22" />
+```ocaml
+List.length languages;;
+:: - : int = 3
+```
 
 Here's something a little more complicated. We can compute the list of the
 lengths of each language as follows:
 
-<link rel="import" href="code/guided-tour/main.mlt" part="23" />
+```ocaml
+List.map languages ~f:String.length;;
+:: - : int list = [5; 4; 1]
+```
 
 `List.map` takes two arguments: a list and a function for transforming the
 elements of that list. It returns a new list with the transformed elements
@@ -403,7 +550,10 @@ by position, and thus allow you to change the order in which arguments are
 presented to a function without changing its behavior, as you can see
 here:[arguments/labeled arguments]{.idx}[labeled arguments]{.idx}
 
-<link rel="import" href="code/guided-tour/main.mlt" part="24" />
+```ocaml
+List.map ~f:String.length languages;;
+:: - : int list = [5; 4; 1]
+```
 
 We'll learn more about labeled arguments and why they're important in
 [Variables And Functions](variables-and-functions.html#variables-and-functions){data-type=xref}.
@@ -414,12 +564,18 @@ In addition to constructing lists using brackets, we can use the list
 constructor `::` for adding elements to the front of a list:[operators/: :
 operator]{.idx}[lists/operator : :]{.idx}
 
-<link rel="import" href="code/guided-tour/main.mlt" part="25" />
+```ocaml
+"French" :: "Spanish" :: languages;;
+:: - : string list = ["French"; "Spanish"; "OCaml"; "Perl"; "C"]
+```
 
 Here, we're creating a new and extended list, not changing the list we
 started with, as you can see below:
 
-<link rel="import" href="code/guided-tour/main.mlt" part="26" />
+```ocaml
+languages;;
+:: - : string list = ["OCaml"; "Perl"; "C"]
+```
 
 ::: {data-type=note}
 ##### Semicolons Versus Commas
@@ -430,7 +586,10 @@ elements in a tuple. If you try to use commas in a list, you'll see that your
 code compiles but doesn't do quite what you might expect:[commas vs.
 semicolons]{.idx}[semicolons vs. commas]{.idx}
 
-<link rel="import" href="code/guided-tour/main.mlt" part="27" />
+```ocaml
+["OCaml", "Perl", "C"];;
+:: - : (string * string * string) list = [("OCaml", "Perl", "C")]
+```
 
 In particular, rather than a list of three strings, what we have is a
 singleton list containing a three-tuple of strings.
@@ -438,7 +597,10 @@ singleton list containing a three-tuple of strings.
 This example uncovers the fact that commas create a tuple, even if there are
 no surrounding parens. So, we can write:
 
-<link rel="import" href="code/guided-tour/main.mlt" part="28" />
+```ocaml
+1,2,3;;
+:: - : int * int * int = (1, 2, 3)
+```
 
 to allocate a tuple of integers. This is generally considered poor style and
 should be avoided.
@@ -449,13 +611,23 @@ The bracket notation for lists is really just syntactic sugar for `::`. Thus,
 the following declarations are all equivalent. Note that `[]` is used to
 represent the empty list and that `::` is right-associative:
 
-<link rel="import" href="code/guided-tour/main.mlt" part="29" />
+```ocaml
+[1; 2; 3];;
+:: - : int list = [1; 2; 3]
+1 :: (2 :: (3 :: []));;
+:: - : int list = [1; 2; 3]
+1 :: 2 :: 3 :: [];;
+:: - : int list = [1; 2; 3]
+```
 
 The `::` constructor can only be used for adding one element to the front of
 the list, with the list terminating at `[]`, the empty list. There's also a
 list concatenation operator, `@`, which can concatenate two lists:
 
-<link rel="import" href="code/guided-tour/main.mlt" part="30" />
+```ocaml
+[1;2;3] @ [4;5;6];;
+:: - : int list = [1; 2; 3; 4; 5; 6]
+```
 
 It's important to remember that, unlike `::`, this is not a constant-time
 operation. Concatenating two lists takes time proportional to the length of
@@ -468,7 +640,15 @@ patterns are based on the two list constructors, `[]` and `::`. Here's a
 simple example:[pattern matching/in lists]{.idx}[lists/pattern
 matching]{.idx}
 
-<link rel="import" href="code/guided-tour/main.mlt" part="31" />
+```ocaml
+let my_favorite_language (my_favorite :: the_rest) =
+  my_favorite
+;;
+1> Characters 25-66:
+1> Warning 8: this pattern-matching is not exhaustive.
+1> Here is an example of a case that is not matched:
+1> []:: val my_favorite_language : 'a list -> 'a = <fun>
+```
 
 By pattern matching using `::`, we've isolated and named the first element of
 the list (`my_favorite`) and the remainder of the list (`the_rest`). If you
@@ -484,7 +664,12 @@ provided pattern, in particular, `[]`, the empty list. If we try to run
 `my_favorite_language`, we'll see that it works on nonempty lists and fails
 on empty ones:
 
-<link rel="import" href="code/guided-tour/main.mlt" part="32" />
+```ocaml
+my_favorite_language ["English";"Spanish";"French"];;
+:: - : string = "English"
+my_favorite_language [];;
+1> Exception: "Match_failure //toplevel//:2:25".
+```
 
 You can avoid these warnings, and more importantly make sure that your code
 actually handles all of the possible cases, by using a `match` statement
@@ -500,7 +685,18 @@ correspond to parts of the value being matched.
 Here's a new version of `my_favorite_language` that uses `match` and doesn't
 trigger a compiler warning:
 
-<link rel="import" href="code/guided-tour/main.mlt" part="33" />
+```ocaml
+let my_favorite_language languages =
+  match languages with
+  | first :: the_rest -> first
+  | [] -> "OCaml" (* A good default! *)
+;;
+:: val my_favorite_language : string list -> string = <fun>
+my_favorite_language ["English";"Spanish";"French"];;
+:: - : string = "English"
+my_favorite_language [];;
+:: - : string = "OCaml"
+```
 
 The preceding code also includes our first comment. OCaml comments are
 bounded by `(*` and `*)` and can be nested arbitrarily and cover multiple
@@ -527,7 +723,16 @@ When writing recursive list functions, this separation between the base cases
 and the inductive cases is often done using pattern matching. Here's a simple
 example of a function that sums the elements of a list:
 
-<link rel="import" href="code/guided-tour/main.mlt" part="34" />
+```ocaml
+let rec sum l =
+  match l with
+  | [] -> 0                   (* base case *)
+  | hd :: tl -> hd + sum tl   (* inductive case *)
+;;
+:: val sum : int list -> int = <fun>
+sum [1;2;3];;
+:: - : int = 6
+```
 
 Following the common OCaml idiom, we use `hd` to refer to the head of the
 list and `tl` to refer to the tail. Note that we had to use the `rec` keyword
@@ -538,7 +743,16 @@ Logically, you can think of the evaluation of a simple recursive function
 like `sum` almost as if it were a mathematical equation whose meaning you
 were unfolding step by step:
 
-<link rel="import" href="code/guided-tour/recursion.ml" />
+```ocaml
+sum [1;2;3]
+= 1 + sum [2;3]
+= 1 + (2 + sum [3])
+= 1 + (2 + (3 + sum []))
+= 1 + (2 + (3 + 0))
+= 1 + (2 + 3)
+= 1 + 5
+= 6
+```
 
 This suggests a reasonable mental model for what OCaml is actually doing to
 evaluate a recursive function.
@@ -546,14 +760,38 @@ evaluate a recursive function.
 We can introduce more complicated list patterns as well. Here's a function
 for removing sequential duplicates:
 
-<link rel="import" href="code/guided-tour/main.mlt" part="35" />
+```ocaml
+let rec remove_sequential_duplicates list =
+  match list with
+  | [] -> []
+  | first :: second :: tl ->
+    if first = second then remove_sequential_duplicates (second :: tl)
+    else first :: remove_sequential_duplicates (second :: tl)
+;;
+1> Characters 46-236:
+1> Warning 8: this pattern-matching is not exhaustive.
+1> Here is an example of a case that is not matched:
+1> _::[]:: val remove_sequential_duplicates : int list -> int list = <fun>
+```
 
 Again, the first arm of the match is the base case, and the second is the
 inductive case. Unfortunately, this code has a problem, as indicated by the
 warning message. In particular, it doesn't handle one-element lists. We can
 fix this warning by adding another case to the match:
 
-<link rel="import" href="code/guided-tour/main.mlt" part="36" />
+```ocaml
+let rec remove_sequential_duplicates list =
+  match list with
+  | [] -> []
+  | [hd] -> [hd]
+  | hd1 :: hd2 :: tl ->
+    if hd1 = hd2 then remove_sequential_duplicates (hd2 :: tl)
+    else hd1 :: remove_sequential_duplicates (hd2 :: tl)
+;;
+:: val remove_sequential_duplicates : int list -> int list = <fun>
+remove_sequential_duplicates [1;1;2;3;3;4;4;1;1;1];;
+:: - : int list = [1; 2; 3; 4; 1]
+```
 
 Note that this code used another variant of the list pattern, `[hd]`, to
 match a list with a single element. We can do this to match a list with any
@@ -575,7 +813,11 @@ Another common data structure in OCaml is the *option*. An option is used to
 express that a value might or might not be present. For
 example:[options]{.idx}[data structures/options]{.idx}
 
-<link rel="import" href="code/guided-tour/main.mlt" part="37" />
+```ocaml
+let divide x y =
+  if y = 0 then None else Some (x / y) ;;
+:: val divide : int -> int -> int option = <fun>
+```
 
 The function `divide` either returns `None` if the divisor is zero, or
 `Some` of the result of the division otherwise. `Some` and `None` are
@@ -592,7 +834,19 @@ rightmost period found in the string. Note that `String.rsplit2` has return
 type `(string * string) option`, returning `None` when no character was found
 to split on.
 
-<link rel="import" href="code/guided-tour/main.mlt" part="38" />
+```ocaml
+let downcase_extension filename =
+  match String.rsplit2 filename ~on:'.' with
+  | None -> filename
+  | Some (base,ext) -> 
+    base ^ "." ^ String.lowercase ext
+;;
+:: val downcase_extension : string -> string = <fun>
+List.map ~f:downcase_extension
+  [ "Hello_World.TXT"; "Hello_World.TXT"; "Hello_World" ]
+;;
+:: - : string list = ["Hello_World.txt"; "Hello_World.txt"; "Hello_World"]
+```
 
 Note that we used the `^` operator for concatenating strings. The
 concatenation operator is provided as part of the `Pervasives` module, which
@@ -607,17 +861,32 @@ new binding within any local scope, including a function body. The `in` marks
 the beginning of the scope within which the new variable can be used. Thus,
 we could write:[let syntax/nested let binding]{.idx}
 
-<link rel="import" href="code/guided-tour/local_let.mlt" part="0.5" />
+```ocaml
+let x = 7 in
+x + x
+;;
+:: - : int = 14
+```
 
 Note that the scope of the `let` binding is terminated by the
 double-semicolon, so the value of `x` is no longer available:
 
-<link rel="import" href="code/guided-tour/local_let.mlt" part="1" />
+```ocaml
+x;;
+1> Characters 0-1:
+1> Error: Unbound value x
+```
 
 We can also have multiple `let` statements in a row, each one adding a new
 variable binding to what came before:
 
-<link rel="import" href="code/guided-tour/local_let.mlt" part="2" />
+```ocaml
+let x = 7 in
+let y = x * x in
+x + y
+;;
+:: - : int = 56
+```
 
 This kind of nested `let` binding is a common way of building up a complex
 expression, with each `let` naming some component, before combining them in
@@ -649,18 +918,28 @@ language, like lists and tuples. But OCaml also allows us to define new data
 types. Here's a toy example of a data type representing a point in
 two-dimensional space:[datatypes/defining new]{.idx}
 
-<link rel="import" href="code/guided-tour/main.mlt" part="41" />
+```ocaml
+type point2d = { x : float; y : float };;
+:: type point2d = { x : float; y : float; }
+```
 
 `point2d` is a *record* type, which you can think of as a tuple where the
 individual fields are named, rather than being defined positionally. Record
 types are easy enough to construct:[records/record
 types]{.idx}[datatypes/record types]{.idx}
 
-<link rel="import" href="code/guided-tour/main.mlt" part="42" />
+```ocaml
+let p = { x = 3.; y = -4. };;
+:: val p : point2d = {x = 3.; y = -4.}
+```
 
 And we can get access to the contents of these types using pattern matching:
 
-<link rel="import" href="code/guided-tour/main.mlt" part="43" />
+```ocaml
+let magnitude { x = x_pos; y = y_pos } =
+  Float.sqrt (x_pos **. 2. +. y_pos **. 2.);;
+:: val magnitude : point2d -> float = <fun>
+```
 
 The pattern match here binds the variable `x_pos` to the value contained in
 the `x` field, and the variable `y_pos` to the value in the `y` field.
@@ -670,17 +949,31 @@ particular, when the name of the field and the name of the variable it is
 bound to coincide, we don't have to write them both down. Using this, our
 magnitude function can be rewritten as follows:[fields/field punning]{.idx}
 
-<link rel="import" href="code/guided-tour/main.mlt" part="44" />
+```ocaml
+let magnitude { x; y } = Float.sqrt (x **. 2. +. y **. 2.);;
+:: val magnitude : point2d -> float = <fun>
+```
 
 Alternatively, we can use dot notation for accessing record fields:
 
-<link rel="import" href="code/guided-tour/main.mlt" part="45" />
+```ocaml
+let distance v1 v2 =
+  magnitude { x = v1.x -. v2.x; y = v1.y -. v2.y };;
+:: val distance : point2d -> point2d -> float = <fun>
+```
 
 And we can of course include our newly defined types as components in larger
 types. Here, for example, are some types for modeling different geometric
 objects that contain values of type `point2d`:
 
-<link rel="import" href="code/guided-tour/main.mlt" part="46" />
+```ocaml
+type circle_desc  = { center: point2d; radius: float };;
+:: type circle_desc = { center : point2d; radius : float; }
+type rect_desc    = { lower_left: point2d; width: float; height: float };;
+:: type rect_desc = { lower_left : point2d; width : float; height : float; }
+type segment_desc = { endpoint1: point2d; endpoint2: point2d } ;;
+:: type segment_desc = { endpoint1 : point2d; endpoint2 : point2d; }
+```
 
 Now, imagine that you want to combine multiple objects of these types
 together as a description of a multi-object scene. You need some unified way
@@ -688,7 +981,17 @@ of representing these objects together in a single type. One way of doing
 this is using a *variant* type:[datatypes/variant types]{.idx}[variant
 types/combining multiple object types with]{.idx}
 
-<link rel="import" href="code/guided-tour/main.mlt" part="47" />
+```ocaml
+type scene_element =
+  | Circle  of circle_desc
+  | Rect    of rect_desc
+  | Segment of segment_desc
+;;
+:: type scene_element =
+::     Circle of circle_desc
+::   | Rect of rect_desc
+::   | Segment of segment_desc
+```
 
 The `|` character separates the different cases of the variant (the first
 `|` is optional), and each case has a capitalized tag, like `Circle`,
@@ -697,7 +1000,30 @@ The `|` character separates the different cases of the variant (the first
 Here's how we might write a function for testing whether a point is in the
 interior of some element of a list of `scene_element`s:
 
-<link rel="import" href="code/guided-tour/main.mlt" part="48" />
+```ocaml
+let is_inside_scene_element point scene_element =
+  let open Float.O in
+  match scene_element with
+  | Circle { center; radius } ->
+    distance center point < radius
+  | Rect { lower_left; width; height } ->
+    point.x    > lower_left.x && point.x < lower_left.x + width
+    && point.y > lower_left.y && point.y < lower_left.y + height
+  | Segment { endpoint1; endpoint2 } -> false
+
+let is_inside_scene point scene =
+  List.exists scene
+    ~f:(fun el -> is_inside_scene_element point el)
+;;
+:: val is_inside_scene_element : point2d -> scene_element -> bool = <fun>
+:: val is_inside_scene : point2d -> scene_element list -> bool = <fun>
+is_inside_scene {x=3.;y=7.}
+  [ Circle {center = {x=4.;y= 4.}; radius = 0.5 } ];;
+:: - : bool = false
+is_inside_scene {x=3.;y=7.}
+  [ Circle {center = {x=4.;y= 4.}; radius = 5.0 } ];;
+:: - : bool = true
+```
 
 You might at this point notice that the use of `match` here is reminiscent of
 how we used `match` with `option` and `list`. This is no accident: `option`
@@ -759,7 +1085,14 @@ other data structures in OCaml, including lists. Here's an example:[data
 structures/arrays]{.idx}[arrays/imperative programming and]{.idx}[imperative
 programming/arrays]{.idx}
 
-<link rel="import" href="code/guided-tour/main.mlt" part="49" />
+```ocaml
+let numbers = [| 1; 2; 3; 4 |];;
+:: val numbers : int array = [|1; 2; 3; 4|]
+numbers.(2) <- 4;;
+:: - : unit = ()
+numbers;;
+:: - : int array = [|1; 2; 4; 4|]
+```
 
 The `.(i)` syntax is used to refer to an element of an array, and the
 `<-` syntax is for modification. Because the elements of the array are
@@ -784,7 +1117,19 @@ for storing a running statistical summary of a collection of
 numbers.[imperative programming/mutable record fields]{.idx}[mutable record
 fields]{.idx}[data structures/mutable record fields]{.idx}
 
-<link rel="import" href="code/guided-tour/main.mlt" part="50" />
+```ocaml
+type running_sum =
+  { mutable sum: float;
+    mutable sum_sq: float; (* sum of squares *)
+    mutable samples: int;
+  }
+;;
+:: type running_sum = {
+::   mutable sum : float;
+::   mutable sum_sq : float;
+::   mutable samples : int;
+:: }
+```
 
 The fields in `running_sum` are designed to be easy to extend incrementally,
 and sufficient to compute means and standard deviations, as shown in the
@@ -793,11 +1138,27 @@ double semicolon between them. That's because the double semicolon is
 required only to tell *utop* to process the input, not to separate two
 declarations:
 
-<link rel="import" href="code/guided-tour/main.mlt" part="51" />
+```ocaml
+let mean rsum = rsum.sum /. Float.of_int rsum.samples
+let stdev rsum =
+  Float.sqrt (rsum.sum_sq /. Float.of_int rsum.samples
+              -. (rsum.sum /. Float.of_int rsum.samples) **. 2.) ;;
+:: val mean : running_sum -> float = <fun>
+:: val stdev : running_sum -> float = <fun>
+```
 
 We also need functions to create and update `running_sum`s:
 
-<link rel="import" href="code/guided-tour/main.mlt" part="52" />
+```ocaml
+let create () = { sum = 0.; sum_sq = 0.; samples = 0 }
+let update rsum x =
+  rsum.samples <- rsum.samples + 1;
+  rsum.sum     <- rsum.sum     +. x;
+  rsum.sum_sq  <- rsum.sum_sq  +. x *. x
+;;
+:: val create : unit -> running_sum = <fun>
+:: val update : running_sum -> float -> unit = <fun>
+```
 
 `create` returns a `running_sum` corresponding to the empty set, and
 `update rsum x` changes `rsum` to reflect the addition of `x` to its set of
@@ -811,7 +1172,16 @@ Here's an example of `create` and `update` in action. Note that this code
 uses `List.iter`, which calls the function `~f` on each element of the
 provided list:
 
-<link rel="import" href="code/guided-tour/main.mlt" part="53" />
+```ocaml
+let rsum = create ();;
+:: val rsum : running_sum = {sum = 0.; sum_sq = 0.; samples = 0}
+List.iter [1.;3.;2.;-7.;4.;5.] ~f:(fun x -> update rsum x);;
+:: - : unit = ()
+mean rsum;;
+:: - : float = 1.3333333333333333
+stdev rsum;;
+:: - : float = 3.944053188733077
+```
 
 It's worth noting that the preceding algorithm is numerically naive and has
 poor precision in the presence of cancellation. You can look at this
@@ -828,18 +1198,43 @@ it. It's just a record type with a single mutable field called
 `contents`:[records/record types]{.idx}[imperative programming/ref
 type]{.idx}
 
-<link rel="import" href="code/guided-tour/main.mlt" part="54" />
+```ocaml
+let x = { contents = 0 };;
+:: val x : int ref = {contents = 0}
+x.contents <- x.contents + 1;;
+:: - : unit = ()
+x;;
+:: - : int ref = {contents = 1}
+```
 
 There are a handful of useful functions and operators defined for `ref`s to
 make them more convenient to work with:
 
-<link rel="import" href="code/guided-tour/main.mlt" part="55" />
+```ocaml
+let x = ref 0  (* create a ref, i.e., { contents = 0 } *) ;;
+:: val x : int ref = {Base.Ref.contents = 0}
+!x             (* get the contents of a ref, i.e., x.contents *) ;;
+:: - : int = 0
+x := !x + 1    (* assignment, i.e., x.contents <- ... *) ;;
+:: - : unit = ()
+!x ;;
+:: - : int = 1
+```
 
 There's nothing magical with these operators either. You can completely
 reimplement the `ref` type and all of these operators in just a few lines of
 code:
 
-<link rel="import" href="code/guided-tour/main.mlt" part="56" />
+```ocaml
+type 'a ref = { mutable contents : 'a };;
+:: type 'a ref = { mutable contents : 'a; }
+let ref x = { contents = x };;
+:: val ref : 'a -> 'a ref = <fun>
+let (!) r = r.contents;;
+:: val ( ! ) : 'a ref -> 'a = <fun>
+let (:=) r x = r.contents <- x;;
+:: val ( := ) : 'a ref -> 'a -> unit = <fun>
+```
 
 The `'a` before the `ref` indicates that the `ref` type is polymorphic, in
 the same way that lists are polymorphic, meaning it can contain values of any
@@ -852,7 +1247,14 @@ in most languages. For example, we can sum over the elements of a list
 imperatively by calling `List.iter` to call a simple function on every
 element of a list, using a `ref` to accumulate the results:
 
-<link rel="import" href="code/guided-tour/main.mlt" part="57" />
+```ocaml
+let sum list =
+  let sum = ref 0 in
+  List.iter list ~f:(fun x -> sum := !sum + x);
+  !sum
+;;
+:: val sum : int list -> int = <fun>
+```
 
 This isn't the most idiomatic way to sum up a list, but it shows how you can
 use a `ref` in place of a mutable variable.
@@ -867,20 +1269,55 @@ randomness. `Random` starts with a default seed, but you can call
 loops]{.idx}[for loops]{.idx}[imperative programming/for and while
 loops]{.idx}
 
-<link rel="import" href="code/guided-tour/main.mlt" part="58" />
+```ocaml
+let permute array =
+  let length = Array.length array in
+  for i = 0 to length - 2 do
+    (* pick a j to swap with *)
+    let j = i + Random.int (length - i) in
+    (* Swap i and j *)
+    let tmp = array.(i) in
+    array.(i) <- array.(j);
+    array.(j) <- tmp
+  done
+;;
+:: val permute : 'a array -> unit = <fun>
+```
 
 From a syntactic perspective, you should note the keywords that distinguish a
 `for` loop: `for`, `to`, `do`, and `done`.
 
 Here's an example run of this code:
 
-<link rel="import" href="code/guided-tour/main.mlt" part="59" />
+```ocaml
+let ar = Array.init 20 ~f:(fun i -> i);;
+:: val ar : int array =
+::   [|0; 1; 2; 3; 4; 5; 6; 7; 8; 9; 10; 11; 12; 13; 14; 15; 16; 17; 18; 19|]
+permute ar;;
+:: - : unit = ()
+ar;;
+:: - : int array =
+:: [|5; 4; 13; 17; 16; 19; 1; 6; 10; 14; 15; 7; 18; 2; 9; 11; 12; 0; 3; 8|]
+```
 
 OCaml also supports `while` loops, as shown in the following function for
 finding the position of the first negative entry in an array. Note that
 `while` (like `for`) is also a keyword:
 
-<link rel="import" href="code/guided-tour/main.mlt" part="60" />
+```ocaml
+let find_first_negative_entry array =
+  let pos = ref 0 in
+  while !pos < Array.length array && array.(!pos) >= 0 do
+    pos := !pos + 1
+  done;
+  if !pos = Array.length array then None else Some !pos
+;;
+:: val find_first_negative_entry : int array -> int option = <fun>
+find_first_negative_entry [|1;2;0;3|];;
+:: - : int option = None
+find_first_negative_entry [|1;-2;0;3|];;
+:: - : int option = Some 1
+```
 
 As a side note, the preceding code takes advantage of the fact that `&&`,
 OCaml's And operator, short-circuits. In particular, in an expression of the
@@ -889,7 +1326,22 @@ evaluated to true. Were it not for that, then the preceding function would
 result in an out-of-bounds error. Indeed, we can trigger that out-of-bounds
 error by rewriting the function to avoid the short-circuiting:
 
-<link rel="import" href="code/guided-tour/main.mlt" part="61" />
+```ocaml
+let find_first_negative_entry array =
+  let pos = ref 0 in
+  while
+    let pos_is_good = !pos < Array.length array in
+    let element_is_non_negative = array.(!pos) >= 0 in
+    pos_is_good && element_is_non_negative
+  do
+    pos := !pos + 1
+  done;
+  if !pos = Array.length array then None else Some !pos
+;;
+:: val find_first_negative_entry : int array -> int option = <fun>
+find_first_negative_entry [|1;2;0;3|];;
+1> Exception: (Invalid_argument "index out of bounds").
+```
 
 The or operator, `||`, short-circuits in a similar way to `&&`.
 
@@ -905,7 +1357,19 @@ Here's the code, which you can save in a file called
 <em class="filename">sum.ml</em>. Note that we don't terminate expressions
 with `;;` here, since it's not required outside the toplevel.
 
-<link rel="import" href="code/guided-tour/sum/sum.ml" />
+```ocaml
+open Base
+open Stdio
+
+let rec read_and_accumulate accum =
+  let line = In_channel.input_line In_channel.stdin in
+  match line with
+  | None -> accum
+  | Some x -> read_and_accumulate (accum +. Float.of_string x)
+
+let () =
+  printf "Total: %F\n" (read_and_accumulate 0.)
+```
 
 This is our first use of OCaml's input and output routines, and we needed to
 open another library, `Stdio`, to get access to them. The function
@@ -929,7 +1393,12 @@ We'll compile our program using `jbuilder`, a build system that's designed
 for use with OCaml projects. First, we need to write a *jbuild* file to
 specify the build.
 
-<link rel="import" href="code/guided-tour/sum/jbuild" />
+```
+(executables
+ ((names (sum))
+  (libraries (base stdio))
+  ))
+```
 
 All we need to specify is the fact that we're building an executable rather
 than a library, the name of the executable, and the name of the libraries we
@@ -938,7 +1407,9 @@ depend on.
 We can now invoke jbuilder to build the executable. The `--dev` flag is
 recommended to get better error messages during the build.
 
-<link rel="import" href="code/guided-tour/sum/build_sum.sh" />
+```sh
+
+```
 
 The `.exe` suffix indicates that we're building a native-code executable,
 which we'll discuss more in
@@ -947,7 +1418,14 @@ Once the build completes, we can use the resulting program like any
 command-line utility. We can feed input to `sum.native` by typing in a
 sequence of numbers, one per line, hitting **`Ctrl-D`** when we're done:
 
-<link rel="import" href="code/guided-tour/sum/sum.rawsh" />
+```
+$ ./_build/default/sum.exe
+1
+2
+3
+94.5
+Total: 100.5
+```
 
 More work is needed to make a really usable command-line program, including a
 proper command-line parsing interface and better error handling, all of which
@@ -961,3 +1439,4 @@ That's it for the guided tour! There are plenty of features left and lots of
 details to explain, but we hope that you now have a sense of what to expect
 from OCaml, and that you'll be more comfortable reading the rest of the book
 as a result.
+
