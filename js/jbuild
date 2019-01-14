@@ -1,0 +1,6 @@
+(executable
+ ((name app)
+  (libraries   (cstruct js_of_ocaml-lwt lwt irmin-mem fmt
+                js_of_ocaml-tyxml reactiveData))
+  (js_of_ocaml ((flags (+cstruct/cstruct.js))))
+  (preprocess  (pps (js_of_ocaml-ppx)))))
